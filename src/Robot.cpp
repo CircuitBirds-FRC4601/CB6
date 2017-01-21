@@ -23,7 +23,8 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 
 			 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-			 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher right here it eats up the memory to so don't make any more
+			 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
+			 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
 
 			 //cvtColor(cruncher,cruncher_grey,COLOR_BGR2HSV);//bam makes it grey I think
 
@@ -112,6 +113,7 @@ public:
 		Rightgo=0;
 		encRight->Reset();
 			encLeft->Reset();
+			light=0;
 
 	}
 
