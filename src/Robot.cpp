@@ -13,17 +13,19 @@
 #include <SmartDashboard/SmartDashboard.h>
 
 class Robot: public frc::IterativeRobot {//uncoment to enable vision
-	/*static void VisionThread(){// multithreading is required for the image proccessing so yah
+	static void VisionThread(){// multithreading is required for the image proccessing so yah
 			 cs::UsbCamera camera = CameraServer::GetInstance()->StartAutomaticCapture();//starts capturing basic images into camera
 
-			 camera.SetExposureAuto();
+			// camera.SetExposureAuto();
 			 camera.SetResolution(640,480);
 
 			 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo();//Grabs video to sink into the mat image cruncher
 
-			 cs::CvSource cheese =CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
+			 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-			 cv::Mat cruncher;//this is the magic image cruncher right here it eats up the memory to so don't make any more
+			 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher right here it eats up the memory to so don't make any more
+
+			 //cvtColor(cruncher,cruncher_grey,COLOR_BGR2HSV);//bam makes it grey I think
 
 		 while(true){//image processing happens in here
 
@@ -32,34 +34,41 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 					 cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
 					 continue;//restarts the thread I think
 			 }
-				 rectangle(cruncher, cv::Point(100, 100), cv::Point(400, 400),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
+				 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
 
-				 			cheese.PutFrame(cruncher);//finally put the final modified frame
+
+				 	 cheese.PutFrame(cruncher);//finally put the final modified frame
+				 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
+
+
 
 		 }
-	}*/
+	}
 public:
 
 	double Leftgo,Rightgo;
+	bool light;
 
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive =new Joystick(1,2,9);
 	Joystick *gamePad =new Joystick(2,6,9);
 
-	Spark *fLeft =new Spark(0);
-	Spark *fRight =new Spark(1);
+	Talon *fLeft =new Talon(0);
+	Talon *fRight =new Talon(1);
 	Talon *bLeft =new Talon(2);
 	Talon *bRight =new Talon(3);
 
 	Encoder *encRight=new Encoder(0,1);
 	Encoder *encLeft=new Encoder(2,3);
 
+	DigitalOutput *lightpwm =new DigitalOutput(0);
+
 	RobotDrive *robotDrive =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
 	void RobotInit() {
-		//std::thread camthread(VisionThread);//makes a new thread
-		//camthread.detach();//snaps the thread off to do its own thing
+		std::thread camthread(VisionThread);//makes a new thread
+		camthread.detach();//snaps the thread off to do its own thing
 
 		chooser.AddDefault(autoNameDefault, autoNameDefault);//I don't like this look into making it logical
 		chooser.AddObject(autoNameCustom, autoNameCustom);
@@ -112,6 +121,14 @@ public:
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 
+		light=gamePad->GetRawButton(1);
+
+		if(light){
+			lightpwm->Set(1);
+		}
+		else{
+			lightpwm->Set(0);
+		}
 
 		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
 		SmartDashboard::PutNumber("encLeft",encLeft->GetRaw());
