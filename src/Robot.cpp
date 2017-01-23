@@ -14,18 +14,21 @@
 
 class Robot: public frc::IterativeRobot {//uncoment to enable vision
 	static void VisionThread(){// multithreading is required for the image proccessing so yah
-			 cs::UsbCamera camera = CameraServer::GetInstance()->StartAutomaticCapture();//starts capturing basic images into camera
-
+			 cs::UsbCamera cam = CameraServer::GetInstance()->StartAutomaticCapture(1);//starts capturing basic images into camera
+			 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(2);
 			// camera.SetExposureAuto();
-			 camera.SetResolution(640,480);
+			 cam.SetResolution(640,480);
+			 cam2.SetResolution(640,480);
 
-			 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo();//Grabs video to sink into the mat image cruncher
+			 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
+			 cs::CvSink sinker2 = CameraServer::GetInstance()->GetVideo(cam2);//Grabs video to sink into the mat image cruncher
 
 			 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
+			 cs::CvSource cheese2 = CameraServer::GetInstance()->PutVideo("circuil",640,480);
 
 			 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
 			 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
-
+			 cv::Mat cruncher2(640,480,CV_8UC1);
 			 //cvtColor(cruncher,cruncher_grey,COLOR_BGR2HSV);//bam makes it grey I think
 
 		 while(true){//image processing happens in here
@@ -35,10 +38,19 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 					 cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
 					 continue;//restarts the thread I think
 			 }
+				 if(sinker2.GrabFrame(cruncher2)==0){// if theres nothing there you got problems
+
+				 					 cheese2.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
+				 					 continue;//restarts the thread I think
+				 			 }
+
 				 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
+				 rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
+
+					 cheese.PutFrame(cruncher);//finally put the final modified frame
+					 cheese2.PutFrame(cruncher2);//finally put the final modified frame
 
 
-				 	 cheese.PutFrame(cruncher);//finally put the final modified frame
 				 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
 
 
@@ -138,10 +150,10 @@ public:
 		if(light){
 			lightpwm->Set(1);
 		}
-		if (SparkUno){
+		else if (SparkUno){
 			X ->Set(1);
 		}
-		if (SparkDue){
+		else if (SparkDue){
 			B ->Set(1);
 		}
 		else{
