@@ -1,4 +1,4 @@
-#include <iostream>
+ #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -48,24 +48,28 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 public:
 
 	double Leftgo,Rightgo;
-	bool light;
+	bool   light;
+	bool   SparkUno;
+	bool   SparkDue;
 
 
 	Joystick *rightDrive =new Joystick(0,2,9);
-	Joystick *leftDrive =new Joystick(1,2,9);
-	Joystick *gamePad =new Joystick(2,6,9);
+	Joystick *leftDrive  =new Joystick(1,2,9);
+	Joystick *gamePad    =new Joystick(2,6,9);
 
-	Talon *fLeft =new Talon(0);
-	Talon *fRight =new Talon(1);
-	Talon *bLeft =new Talon(2);
-	Talon *bRight =new Talon(3);
+	Talon *fLeft         =new Talon(0);
+	Talon *fRight        =new Talon(1);
+	Talon *bLeft         =new Talon(2);
+	Talon *bRight        =new Talon(3);
+	Spark *X             =new Spark(4);
+	Spark *B             =new Spark (5);
 
-	Encoder *encRight=new Encoder(0,1);
-	Encoder *encLeft=new Encoder(2,3);
+	Encoder *encRight    =new Encoder(0,1);
+	Encoder *encLeft     =new Encoder(2,3);
 
 	DigitalOutput *lightpwm =new DigitalOutput(0);
 
-	RobotDrive *robotDrive =new RobotDrive(fLeft,fRight,bLeft,bRight);
+	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
 	void RobotInit() {
 		std::thread camthread(VisionThread);//makes a new thread
@@ -109,27 +113,41 @@ public:
 	}
 
 	void TeleopInit() {
-		Leftgo=0;
-		Rightgo=0;
+		Leftgo      =0;
+		Rightgo     =0;
+		light       =0;
+		SparkUno    =0;
+		SparkDue    =0;
 		encRight->Reset();
-			encLeft->Reset();
-			light=0;
+		encLeft->Reset();
 
 	}
 
 	void TeleopPeriodic() {
-		Leftgo=.75*leftDrive->GetRawAxis(1);
+		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 
-		light=gamePad->GetRawButton(1);
+		light   =gamePad->GetRawButton(1);
+		SparkUno=gamePad->GetRawButton(2);
+		SparkDue=gamePad->GetRawButton(3);
+
+
 
 		if(light){
 			lightpwm->Set(1);
 		}
+		if (SparkUno){
+			X ->Set(1);
+		}
+		if (SparkDue){
+			B ->Set(1);
+		}
 		else{
 			lightpwm->Set(0);
+			B       ->Set(0);
+			X       ->Set(0);
 		}
 
 		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
