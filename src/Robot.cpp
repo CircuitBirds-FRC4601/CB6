@@ -13,57 +13,13 @@
 #include <SmartDashboard/SmartDashboard.h>
 
 class Robot: public frc::IterativeRobot {//uncoment to enable vision
-	static void VisionThread(){// multithreading is required for the image proccessing so yah
-			 cs::UsbCamera cam = CameraServer::GetInstance()->StartAutomaticCapture(1);//starts capturing basic images into camera
-			 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(2);
-			// camera.SetExposureAuto();
-			 cam.SetResolution(640,480);
-			 cam2.SetResolution(640,480);
 
-			 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
-			 cs::CvSink sinker2 = CameraServer::GetInstance()->GetVideo(cam2);//Grabs video to sink into the mat image cruncher
-
-			 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
-			 cs::CvSource cheese2 = CameraServer::GetInstance()->PutVideo("circuil",640,480);
-
-			 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
-			 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
-			 cv::Mat cruncher2(640,480,CV_8UC1);
-			 //cvtColor(cruncher,cruncher_grey,COLOR_BGR2HSV);//bam makes it grey I think
-
-		 while(true){//image processing happens in here
-
-				 if(sinker.GrabFrame(cruncher)==0){// if theres nothing there you got problems
-
-					 cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
-					 continue;//restarts the thread I think
-			 }
-				 if(sinker2.GrabFrame(cruncher2)==0){// if theres nothing there you got problems
-
-				 					 cheese2.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
-				 					 continue;//restarts the thread I think
-				 			 }
-
-				 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
-				 rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
-
-					 cheese.PutFrame(cruncher);//finally put the final modified frame
-					 cheese2.PutFrame(cruncher2);//finally put the final modified frame
-
-
-				 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
-
-
-
-		 }
-	}
 public:
 
 	double Leftgo,Rightgo;
-	bool   light;
+	bool   light,camswitcher;
 	bool   SparkUno;
 	bool   SparkDue;
-
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -82,6 +38,53 @@ public:
 	DigitalOutput *lightpwm =new DigitalOutput(0);
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
+
+	static void VisionThread(){// multithreading is required for the image proccessing so yah
+				 cs::UsbCamera cam =  CameraServer::GetInstance()->StartAutomaticCapture(0); //starts capturing basic images into camera
+				 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(1);
+				 //cam.SetExposureManual(50);
+
+				// cam2.UsbCamera("cam2",2);
+
+				 cam.SetResolution(640,480);
+				 cam2.SetResolution(640,480);
+
+				 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
+
+				 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
+
+				 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
+				 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
+
+
+
+			 while(true){//image processing happens in here
+
+
+					 if(sinker.GrabFrame(cruncher)==0){// if theres nothing there you got problems
+
+						 cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
+						 continue;//restarts the thread I think
+				 }
+					/* if(camswitcher){
+						 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(2);
+
+					 }
+					 else{
+						 cs::UsbCamera cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
+					 }*/
+
+					 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
+					// rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
+
+						 cheese.PutFrame(cruncher);//finally put the final modified frame
+
+
+					 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
+
+			 }
+		}
+
 
 	void RobotInit() {
 		std::thread camthread(VisionThread);//makes a new thread
@@ -138,6 +141,7 @@ public:
 	void TeleopPeriodic() {
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
+		camswitcher=rightDrive->GetRawButton(0);
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 
