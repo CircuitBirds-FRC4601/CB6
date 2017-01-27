@@ -53,8 +53,9 @@ public:
 
 				 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-				 cv::Mat cruncher(640,480,CV_8UC1);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
+				 cv::Mat cruncher(640,480,CV_32F);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
 				 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
+				 cv::Mat cruncher2(640,480,CV_8U);
 
 
 
@@ -76,11 +77,12 @@ public:
 
 					 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
 					// rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
+					 cvtColor(cruncher,cruncher2,cv::COLOR_BGR2GRAY);
 
-						 cheese.PutFrame(cruncher);//finally put the final modified frame
+						 cheese.PutFrame(cruncher2);//finally put the final modified frame
 
 
-					 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
+					 	SmartDashboard::PutNumber("Point 25,25",cruncher2.at<uchar>(25,25));
 
 			 }
 		}
