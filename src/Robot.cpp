@@ -77,7 +77,7 @@ public:
 
 					 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
 					// rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
-					 cvtColor(cruncher,cruncher2,cv::COLOR_BGR2GRAY);
+					// cvtColor(cruncher,cruncher2,cv::COLOR_BGR2GRAY);
 
 						 cheese.PutFrame(cruncher2);//finally put the final modified frame
 
