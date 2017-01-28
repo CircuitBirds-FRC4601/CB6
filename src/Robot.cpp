@@ -17,7 +17,7 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 public:
 
 	double Leftgo,Rightgo;
-	bool   light,camswitcher;
+	bool   light;
 	bool   SparkUno;
 	bool   SparkDue;
 
@@ -37,7 +37,7 @@ public:
 
 	DigitalOutput *lightpwm =new DigitalOutput(0);
 
-	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
+	RobotDrive *robotDrive  =new RobotDrive(fLeft,bLeft,fRight,bRight);
 
 	static void VisionThread(){// multithreading is required for the image proccessing so yah
 				 cs::UsbCamera cam =  CameraServer::GetInstance()->StartAutomaticCapture(0); //starts capturing basic images into camera
@@ -47,13 +47,13 @@ public:
 				// cam2.UsbCamera("cam2",2);
 
 				 cam.SetResolution(640,480);
-				 cam2.SetResolution(640,480);
+				// cam2.SetResolution(640,480);
 
 				 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
 
 				 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-				 cv::Mat cruncher(640,480,CV_32F);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
+				 cv::Mat cruncher(640,480,CV_8U);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
 				 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
 				 cv::Mat cruncher2(640,480,CV_8U);
 
@@ -75,14 +75,15 @@ public:
 						 cs::UsbCamera cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
 					 }*/
 
-					 rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
+					 rectangle(cruncher, cv::Point(0, 40), cv::Point(640, 100),cv::Scalar(255, 0, 0), 5);//draw some rectangles on that thing WOOT RECTANGLES
 					// rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
 					// cvtColor(cruncher,cruncher2,cv::COLOR_BGR2GRAY);
+					// cv::inRange(cruncher,cv::Scalar(0,50,0),cv::Scalar(0,255,0),cruncher2);
+					 //cv::threshold(cruncher2,cruncher,240,250,cv::THRESH_BINARY);
+						 cheese.PutFrame(cruncher);//finally put the final modified frame
 
-						 cheese.PutFrame(cruncher2);//finally put the final modified frame
 
-
-					 	SmartDashboard::PutNumber("Point 25,25",cruncher2.at<uchar>(25,25));
+					 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
 
 			 }
 		}
@@ -143,7 +144,6 @@ public:
 	void TeleopPeriodic() {
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
-		camswitcher=rightDrive->GetRawButton(0);
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 
