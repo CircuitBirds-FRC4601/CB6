@@ -1,23 +1,22 @@
- #include <iostream>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 #include <WPILib.h>
 #include <CameraServer.h>
 #include <IterativeRobot.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/types.hpp>//all of these might not be neccisary
-#include <LiveWindow/LiveWindow.h>
-#include <SmartDashboard/SendableChooser.h>
-#include <SmartDashboard/SmartDashboard.h>
+
 
 class Robot: public frc::IterativeRobot {//uncoment to enable vision
 
 public:
 
 	double Leftgo,Rightgo;
-	bool   light;
+	bool   light,camswitcher;
 	bool   SparkUno;
 	bool   SparkDue;
 
@@ -30,34 +29,28 @@ public:
 	Talon *bLeft         =new Talon(2);
 	Talon *bRight        =new Talon(3);
 	Spark *X             =new Spark(4);
-	Spark *B             =new Spark (5);
+	Spark *B             =new Spark(5);
 
 	Encoder *encRight    =new Encoder(0,1);
 	Encoder *encLeft     =new Encoder(2,3);
 
-	DigitalOutput *lightpwm =new DigitalOutput(0);
-
-	RobotDrive *robotDrive  =new RobotDrive(fLeft,bLeft,fRight,bRight);
+	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
 	static void VisionThread(){// multithreading is required for the image proccessing so yah
 				 cs::UsbCamera cam =  CameraServer::GetInstance()->StartAutomaticCapture(0); //starts capturing basic images into camera
 				 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(1);
-				 //cam.SetExposureManual(50);
 
-				// cam2.UsbCamera("cam2",2);
-
-				 cam.SetResolution(640,480);
+				 cam.SetResolution(320,240);
 				// cam2.SetResolution(640,480);
 
 				 cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
 
 				 cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-				 cv::Mat cruncher(640,480,CV_8U);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
+				 cv::Mat cruncher(320,240,CV_8U);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
 				 // also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
-				 cv::Mat cruncher2(640,480,CV_8U);
-
-
+				// cv::Mat cruncher2(320,240,CV_8U);
+				 std::vector<std::vector<cv::Point> > contours;
 
 			 while(true){//image processing happens in here
 
@@ -67,24 +60,14 @@ public:
 						 cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
 						 continue;//restarts the thread I think
 				 }
-					/* if(camswitcher){
-						 cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(2);
 
-					 }
-					 else{
-						 cs::UsbCamera cam1 = CameraServer::GetInstance()->StartAutomaticCapture(1);
-					 }*/
-
-					 rectangle(cruncher, cv::Point(0, 40), cv::Point(640, 100),cv::Scalar(255, 0, 0), 5);//draw some rectangles on that thing WOOT RECTANGLES
-					// rectangle(cruncher2, cv::Point(100, 100), cv::Point(150, 150),cv::Scalar(255, 255, 255), 5);
-					// cvtColor(cruncher,cruncher2,cv::COLOR_BGR2GRAY);
-					// cv::inRange(cruncher,cv::Scalar(0,50,0),cv::Scalar(0,255,0),cruncher2);
-					 //cv::threshold(cruncher2,cruncher,240,250,cv::THRESH_BINARY);
-						 cheese.PutFrame(cruncher);//finally put the final modified frame
-
-
+					 cv::inRange(cruncher,cv::Scalar(0,100,0),cv::Scalar(100,255,100),cruncher);//finds them greens
+					 cv::findContours(cruncher,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//draws external greens and stores them in contors
+					 cv::drawContours(cruncher,contours,-1,cv::Scalar(255,255,255),1,8);//draws dem contors
+					  rectangle(cruncher, cv::Point(0, 0), cv::Point(50, 50),cv::Scalar(255, 255, 255), 5);//draw some rectangles on that thing WOOT RECTANGLES
+					 cheese.PutFrame(cruncher);
 					 	SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
-
+					// SmartDashboard::PutNumber("maxposn#1",max1posn);
 			 }
 		}
 
@@ -144,6 +127,7 @@ public:
 	void TeleopPeriodic() {
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
+		camswitcher=rightDrive->GetRawButton(1);
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 
@@ -153,20 +137,12 @@ public:
 
 
 
-		if(light){
-			lightpwm->Set(1);
-		}
-		else if (SparkUno){
-			X ->Set(1);
-		}
-		else if (SparkDue){
-			B ->Set(1);
-		}
-		else{
-			lightpwm->Set(0);
-			B       ->Set(0);
-			X       ->Set(0);
-		}
+	if(camswitcher){
+		X->Set(1);
+	}
+	else{
+		X->Set(0);
+	}
 
 		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
 		SmartDashboard::PutNumber("encLeft",encLeft->GetRaw());
