@@ -5,6 +5,7 @@
 #include <vector>
 #include <WPILib.h>
 #include <CameraServer.h>
+#include <unistd.h>
 #include <IterativeRobot.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
@@ -16,9 +17,10 @@ class Robot: public frc::IterativeRobot {//uncoment to enable vision
 public:
 
 	double Leftgo,Rightgo,Rdis,Ldis;
-	bool   light,kickerswitcher;
-	bool   SparkUno,kickatpos;
-	bool   SparkDue;
+	bool   kickerswitcher;
+	bool   kickerdummy,kickerrunning;
+	bool   greenholder;
+	double climbspeed,light;
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -28,8 +30,9 @@ public:
 	Talon *fRight        =new Talon(1);
 	Talon *bLeft         =new Talon(2);
 	Talon *bRight        =new Talon(3);
-	Spark *kicker             =new Spark(4);
-	Spark *B             =new Spark(5);
+	Spark *kicker        =new Spark(4);
+	Spark *climber       =new Spark(5);
+	Spark *frankenspark  =new Spark(6);
 
 	Encoder *encRight    =new Encoder(0,1);
 	Encoder *encLeft     =new Encoder(2,3);
@@ -37,20 +40,27 @@ public:
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
-	static void VisionThread(){// multithreading is required for the image proccessing so yah
+	cv::Mat pregreen = cv::Mat(640,480,CV_8U);
+	cv::Mat green = cv::Mat(640,480,CV_8U);
+
+	cs::UsbCamera cam2 =  CameraServer::GetInstance()->StartAutomaticCapture(1);
+	cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);
+	cs::CvSink autosinker = CameraServer::GetInstance()->GetVideo(cam2);
+
+
+	/*static void VisionThread(){// multithreading is required for the image proccessing so yah
 		cs::UsbCamera cam =  CameraServer::GetInstance()->StartAutomaticCapture(0); //starts capturing basic images into camera
 		//cs::UsbCamera cam2 = CameraServer::GetInstance()->StartAutomaticCapture(1);
-
-		cam.SetResolution(320,240);
+		cam.SetBrightness(.5);
+		cam.SetExposureManual(-11);
+		cam.SetResolution(640,480);
 		// cam2.SetResolution(640,480);
 
 		cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
 
-		cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
+	//	cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
-		cv::Mat cruncher(320,240,CV_8U);//this is the magic image cruncher when converting make sure there both the same type try this next CV_16UC1 its 16nit the other is 8
-		// also there is CV_32FC1 i think its 32bit these also appere to not need the C1 so try CV_8U and the likes
-		// cv::Mat cruncher2(320,240,CV_8U);
+		cv::Mat cruncher(640,480,CV_8U);
 		std::vector<std::vector<cv::Point> > contours;
 
 		while(true){//image processing happens in here
@@ -58,32 +68,35 @@ public:
 
 			if(sinker.GrabFrame(cruncher)==0){// if theres nothing there you got problems
 
-				cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
+				//cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
 				continue;//restarts the thread I think
 			}
 
-			cv::inRange(cruncher,cv::Scalar(0,100,0),cv::Scalar(100,255,100),cruncher);//finds them greens
+		//	cv::inRange(cruncher,cv::Scalar(25,20,15),cv::Scalar(40,50,30),cruncher);//finds them greens
+			//cv::erode(cruncher,cruncher,)
 			//cv::Canny(cruncher,cruncher,7,21,3);
 		//	cv::blur(cruncher,cruncher,cv::Size(160,120),cv::Point(-1,-1));
-			cv::findContours(cruncher,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//draws external greens and stores them in contors
-			cv::drawContours(cruncher,contours,-1,cv::Scalar(255,255,255),1,8);//draws dem contors
+		//	cv::findContours(cruncher,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//draws external greens and stores them in contors
+			//cv::drawContours(cruncher,contours,-1,cv::Scalar(255,255,255),1,8);//draws dem contors
 
-			cheese.PutFrame(cruncher);
+			//cheese.PutFrame(cruncher);
 			SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
+
 			// SmartDashboard::PutNumber("maxposn#1",max1posn);
 		}
-	}
+	}*/
 
 
 	void RobotInit() {
-		std::thread camthread(VisionThread);//makes a new thread
-		camthread.detach();//snaps the thread off to do its own thing
+		//std::thread camthread(VisionThread);//makes a new thread
+		//camthread.detach();//snaps the thread off to do its own thing
 
 		chooser.AddDefault(DOA, DOA);
 		chooser.AddObject(NOTHING, NOTHING);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
 		encRight->Reset();
 		encLeft->Reset();
+		cv::Mat green(640,480,CV_8U);
 
 	}
 
@@ -105,6 +118,12 @@ public:
 
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
+		//	cv::Mat *pregreen	=new cv::Mat(640,480,CV_8U);
+			cam2.SetBrightness(.5);
+					cam2.SetExposureManual(-11);
+					cam2.SetResolution(640,480);
+
+
 		}
 		else {
 			// Default Auto goes here
@@ -117,6 +136,17 @@ public:
 		if (autoSelected == NOTHING) {
 			Rightgo=0;
 			Leftgo=0;
+			if(!greenholder){
+			autosinker.GrabFrame(pregreen);
+			frankenspark->Set(1);
+			sleep(1);
+			autosinker.GrabFrame(green);
+			frankenspark->Set(0);
+			greenholder=1;
+			}
+			else{
+				cheese.PutFrame(green);
+			}
 
 		}
 
@@ -140,8 +170,6 @@ public:
 		Leftgo      =0;
 		Rightgo     =0;
 		light       =0;
-		SparkUno    =0;
-		SparkDue    =0;
 		encRight->Reset();
 		encLeft->Reset();
 
@@ -155,31 +183,58 @@ public:
 		robotDrive->TankDrive(Leftgo,Rightgo);
 //
 
+		if(!kickerrunning){
 		kickerswitcher   =gamePad->GetRawButton(1);
-		SparkUno=gamePad->GetRawButton(2);
-		SparkDue=gamePad->GetRawButton(3);
-
+		}
 
 //
-		if(kickerswitcher&&kickatpos){//if at pos and button
-			kicker->Set(1);//move
+		if(kickerswitcher&&!kickerdummy){//if at pos and button
+			kickerrunning=1;
+			kicker->Set(-1);//move
 			encKicker->GetRaw();//read enc
-			if((encKicker->GetRaw())<=-15){//if at -15 deg call for reverse
-				kickatpos=false;
+			if((encKicker->GetRaw())>=455){//if at -15 deg call for reverse
+				kickerrunning=0;
+				kickerdummy=1;
+				kicker->Set(0);
 			}
 		}
-		else if(!kickatpos){//reverse caller
-			kicker->Set(-1);//backwards
+		else if(kickerswitcher&&kickerdummy){//reverse caller
+			kickerrunning=1;
+			kicker->Set(.75);//backwards
 			encKicker->GetRaw();//read enc
-			if((encKicker->GetRaw())<=30){//if at 30 deg your home
-				kickatpos=true;
+			if((encKicker->GetRaw())<=1){//if at 30 deg your home
+				kickerrunning=0;
+				kickerdummy=0;
+				kicker->Set(0);
 			}
 		}
 		else{//else stop
 			kicker->Set(0);
 		}
+
+SmartDashboard::PutNumber("enckicker",encKicker->GetRaw());
+//
+		climbspeed=gamePad->GetRawAxis(0);
+		if(abs(climbspeed)>=.5){
+			climber->Set(climbspeed);
+		}
+		else{
+			climber->Set(0);
+		}
 //
 
+//
+	light= gamePad->GetRawAxis(4);
+	if(fabs(light)>=0.25){
+		frankenspark->Set(-fabs(light));
+	}
+	else{
+		frankenspark->Set(0);
+	}
+SmartDashboard::PutNumber("light",fabs(light));
+
+//
+		SmartDashboard::PutNumber("climbspeed",climbspeed);
 		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
 		SmartDashboard::PutNumber("encLeft",encLeft->GetRaw());
 
@@ -201,3 +256,50 @@ private://why is this down here?
 };
 
 START_ROBOT_CLASS(Robot)
+/* Hardware map of the robot "TBA"  (CB5)
+ *
+ *
+ * 1ft=~720
+ *  RRio Pins
+ *  	DIO
+ *  	0	A Right Wheel Encoder
+ *  	1	B "
+ *  	2	A Left Wheel Encoder
+ *  	3	B  "
+ *  	4	A Kicker Encoder
+ *  	5	B "
+ *  	6	Green Lights
+ *  	7
+ *  	8
+ *  	9
+ *
+ *  	Analog
+ *  	0
+ *  	1
+ *  	2
+ *  	3
+ *
+ *		PWM
+ *		0
+ *		1
+ *		2
+ *		3
+ *		4
+ *		5
+ *		6
+ *		7
+ *		8
+ *		9
+ *
+ *		Relay
+ *		0
+ *		1
+ *		2
+ *		3
+ *
+ *
+ *
+ *
+ *
+ *
+ */
