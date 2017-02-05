@@ -12,15 +12,16 @@
 #include <opencv2/core/types.hpp>//all of these might not be neccisary
 
 
-class Robot: public frc::IterativeRobot {//uncoment to enable vision
+class Robot: public frc::IterativeRobot {
 
 public:
 
 	double Leftgo,Rightgo,Rdis,Ldis;
+	double climbspeed,light,push;
 	bool   kickerswitcher;
 	bool   kickerdummy,kickerrunning;
 	bool   greenholder;
-	double climbspeed,light;
+
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -36,17 +37,30 @@ public:
 
 	Encoder *encRight    =new Encoder(0,1);
 	Encoder *encLeft     =new Encoder(2,3);
-	Encoder *encKicker	=new Encoder(4,5);
+	Encoder *encKicker	 =new Encoder(4,5);
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
-	cv::Mat pregreen = cv::Mat(640,480,CV_8U);
-	cv::Mat green = cv::Mat(640,480,CV_8U);
+	//VISION DECL START
 
-	cs::UsbCamera cam2 =  CameraServer::GetInstance()->StartAutomaticCapture(1);
-	cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);
-	cs::CvSink autosinker = CameraServer::GetInstance()->GetVideo(cam2);
+		//Auto Camera
+	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
+			cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
+			cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
+		//Auto Camera
 
+		//Matrixes
+		cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
+		cv::Mat green 		= cv::Mat(640,480,CV_8U);
+		//Matrixes
+
+		//Points and lines
+	//	std::vector<std::vector<cv::Point> > contours;
+		//cv::Point point1,point2;
+		//cv::Rect  rect1;
+		//Points and lines
+
+	//VISION DECL END
 
 	/*static void VisionThread(){// multithreading is required for the image proccessing so yah
 		cs::UsbCamera cam =  CameraServer::GetInstance()->StartAutomaticCapture(0); //starts capturing basic images into camera
@@ -94,9 +108,9 @@ public:
 		chooser.AddDefault(DOA, DOA);
 		chooser.AddObject(NOTHING, NOTHING);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
+
 		encRight->Reset();
 		encLeft->Reset();
-		cv::Mat green(640,480,CV_8U);
 
 	}
 
@@ -111,6 +125,7 @@ public:
 	 * if-else structure below with additional strings. If using the
 	 * SendableChooser make sure to add them to the chooser code above as well.
 	 */
+
 	void AutonomousInit() override {
 		autoSelected = chooser.GetSelected();
 		// std::string autoSelected = SmartDashboard::GetString("Auto Selector", autoNameDefault);
@@ -118,10 +133,10 @@ public:
 
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
-		//	cv::Mat *pregreen	=new cv::Mat(640,480,CV_8U);
-			cam2.SetBrightness(.5);
-					cam2.SetExposureManual(-11);
-					cam2.SetResolution(640,480);
+			greenholder=0;
+			cam2.SetBrightness(100);
+			cam2.SetExposureManual(0);
+			cam2.SetResolution(640,480);
 
 
 		}
@@ -130,28 +145,55 @@ public:
 		}
 	}
 
+//AUTO START
+
 	void AutonomousPeriodic() {
 		Rdis=encRight->GetRaw();
 		Ldis=encLeft->GetRaw();
-		if (autoSelected == NOTHING) {
+
+		//Nothing
+		if (autoSelected == NOTHING) {//sit there yah lazy bum
 			Rightgo=0;
 			Leftgo=0;
+
+			//
 			if(!greenholder){
-			autosinker.GrabFrame(pregreen);
-			frankenspark->Set(1);
-			sleep(1);
-			autosinker.GrabFrame(green);
-			frankenspark->Set(0);
-			greenholder=1;
+				autosinker.GrabFrame(pregreen);//grabs a pregreen image
+				frankenspark->Set(-1);//turn on the lights
+				sleep(5);//1 sec delay for light to turn on
+				autosinker.GrabFrame(green);//grabs a green image
+				frankenspark->Set(0);//turns off light
+				greenholder=1;
+			}
+			//
+
+			else if(greenholder&&!push){
+				//cv::addWeighted(pregreen,4,green,-4,0,green);//meshes pregreen and green then outputs to green
+				cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
+			//	cv::medianBlur(green,green,23);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
+				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+
+				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
+				//we are probably going to need to filter these contours
+
+				//point1.x = rect1.x;//grabs x from rect1
+				//point1.y = rect1.y;//grabs y from rect1
+				//point2.x = rect1.x+rect1.width;//grabs the opposite corner
+			//	point2.y = rect1.y+rect1.height;
+
+			//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
+
+				cheese.PutFrame(green);
 			}
 			else{
-				cheese.PutFrame(green);
+
 			}
 
 		}
+		//Nothing
 
-	//
-		else {//DOA
+		//DOA
+		else {//Dead On Arrival AKA Dead Reckoning
 
 			if(Rdis<=2160&&Ldis<=2160){//114.3" from wall to wall of airship ~6 rev
 				Rightgo=.75;
@@ -162,9 +204,12 @@ public:
 				Leftgo=0;
 			}
 		}
-	//
+		//DOA
+
 		robotDrive->TankDrive(Leftgo,Rightgo);
 	}
+
+//AUTO END
 
 	void TeleopInit() {
 		Leftgo      =0;
@@ -175,72 +220,81 @@ public:
 
 	}
 
+//TELE START
+
 	void TeleopPeriodic() {
-//
+
+		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
-//
+		//Drive
 
+		//Kicker
 		if(!kickerrunning){
-		kickerswitcher   =gamePad->GetRawButton(1);
+			kickerswitcher   =gamePad->GetRawButton(1);
 		}
 
-//
-		if(kickerswitcher&&!kickerdummy){//if at pos and button
+		if(kickerswitcher&&!kickerdummy){//Forward
 			kickerrunning=1;
-			kicker->Set(-1);//move
-			encKicker->GetRaw();//read enc
-			if((encKicker->GetRaw())>=455){//if at -15 deg call for reverse
-				kickerrunning=0;
+			kicker->Set(-.5);//Move Forwards
+			encKicker->GetRaw();//Read Enc
+			if((encKicker->GetRaw())>=350){
+				kickerrunning=0;//No Longer Running
 				kickerdummy=1;
-				kicker->Set(0);
+				kicker->StopMotor();
 			}
 		}
-		else if(kickerswitcher&&kickerdummy){//reverse caller
+		else if(kickerswitcher&&kickerdummy){//Reverse
 			kickerrunning=1;
-			kicker->Set(.75);//backwards
-			encKicker->GetRaw();//read enc
-			if((encKicker->GetRaw())<=1){//if at 30 deg your home
-				kickerrunning=0;
+			kicker->Set(.5);//Move Backwards
+			encKicker->GetRaw();//Read Enc
+			if((encKicker->GetRaw())<=100){//Stop Early to Comp for Drift
+				kickerrunning=0;//No Longer Running
 				kickerdummy=0;
-				kicker->Set(0);
+				kicker->StopMotor();
 			}
 		}
-		else{//else stop
+		else{//Stop if no button
 			kicker->Set(0);
 		}
 
-SmartDashboard::PutNumber("enckicker",encKicker->GetRaw());
-//
+		SmartDashboard::PutNumber("enckicker",encKicker->GetRaw());
+		//Kicker
+
+		//Climber
 		climbspeed=gamePad->GetRawAxis(0);
-		if(abs(climbspeed)>=.5){
+		if(fabs(climbspeed)>=.5){
 			climber->Set(climbspeed);
 		}
 		else{
 			climber->Set(0);
 		}
-//
+		//Climber
 
-//
-	light= gamePad->GetRawAxis(4);
-	if(fabs(light)>=0.25){
-		frankenspark->Set(-fabs(light));
-	}
-	else{
-		frankenspark->Set(0);
-	}
-SmartDashboard::PutNumber("light",fabs(light));
+		//Light
+		light= gamePad->GetRawAxis(4);
+		if(fabs(light)>=0.25){
+			frankenspark->Set(-fabs(light));//have to do - for Doc's franken spark
+		}
+		else{
+			frankenspark->Set(0);
+		}
+		SmartDashboard::PutNumber("light",fabs(light));
+		//Light
 
-//
+		//SmartDashboard
 		SmartDashboard::PutNumber("climbspeed",climbspeed);
 		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
 		SmartDashboard::PutNumber("encLeft",encLeft->GetRaw());
 
 		SmartDashboard::PutNumber("Leftgo",Leftgo);
 		SmartDashboard::PutNumber("Rightgo",Rightgo);
+		//SmartDashboard
 	}
+
+//TELE END
 
 	void TestPeriodic() {
 		lw->Run();
@@ -258,17 +312,28 @@ private://why is this down here?
 START_ROBOT_CLASS(Robot)
 /* Hardware map of the robot "TBA"  (CB5)
  *
+ * 		PWM
+ *		0 Front Left
+ *		1 	"	Right
+ *		2 Back	Left
+ *		3	"	Right
+ *		4 Kicker
+ *		5 Climber
+ *		6 Franken Spark
+ *		7
+ *		8
+ *		9
  *
- * 1ft=~720
+ * 1ft=~720 check this
  *  RRio Pins
  *  	DIO
  *  	0	A Right Wheel Encoder
  *  	1	B "
  *  	2	A Left Wheel Encoder
- *  	3	B  "
+ *  	3	B "
  *  	4	A Kicker Encoder
  *  	5	B "
- *  	6	Green Lights
+ *  	6
  *  	7
  *  	8
  *  	9
@@ -278,18 +343,6 @@ START_ROBOT_CLASS(Robot)
  *  	1
  *  	2
  *  	3
- *
- *		PWM
- *		0
- *		1
- *		2
- *		3
- *		4
- *		5
- *		6
- *		7
- *		8
- *		9
  *
  *		Relay
  *		0
