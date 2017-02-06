@@ -44,6 +44,8 @@ public:
 	//VISION DECL START
 
 		//Auto Camera
+	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
+
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
 			cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
 			cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
@@ -104,6 +106,16 @@ public:
 	void RobotInit() {
 		//std::thread camthread(VisionThread);//makes a new thread
 		//camthread.detach();//snaps the thread off to do its own thing
+		cam.SetBrightness(.5);
+		cam.SetExposureManual(-11);
+		cam.SetResolution(640,480);
+
+		cam2.SetBrightness(133);
+		cam2.SetExposureManual(5);
+		cam2.SetExposureManual(-8);
+		cam2.SetWhiteBalanceManual(2800);
+		cam2.SetResolution(640,480);
+
 
 		chooser.AddDefault(DOA, DOA);
 		chooser.AddObject(NOTHING, NOTHING);
@@ -134,9 +146,6 @@ public:
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
 			greenholder=0;
-			cam2.SetBrightness(100);
-			cam2.SetExposureManual(0);
-			cam2.SetResolution(640,480);
 
 
 		}
@@ -168,10 +177,10 @@ public:
 			//
 
 			else if(greenholder&&!push){
-				//cv::addWeighted(pregreen,4,green,-4,0,green);//meshes pregreen and green then outputs to green
+			//	cv::addWeighted(pregreen,9,green,-10,0,green,-1);//meshes pregreen and green then outputs to green
 				cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
-			//	cv::medianBlur(green,green,23);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
-				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
+				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
 
 				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
 				//we are probably going to need to filter these contours
