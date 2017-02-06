@@ -106,8 +106,10 @@ public:
 	void RobotInit() {
 		//std::thread camthread(VisionThread);//makes a new thread
 		//camthread.detach();//snaps the thread off to do its own thing
-		cam.SetBrightness(.5);
-		cam.SetExposureManual(-11);
+		cam.SetBrightness(133);
+		cam.SetExposureManual(5);
+		cam.SetExposureManual(-8);
+		cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
 
 		cam2.SetBrightness(133);
