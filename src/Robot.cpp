@@ -20,7 +20,7 @@ public:
 	double climbspeed,light,push;
 	bool   kickerswitcher;
 	bool   kickerdummy,kickerrunning;
-	bool   greenholder;
+	bool   greenholder, stop_arm1;
 
 
 	Joystick *rightDrive =new Joystick(0,2,9);
@@ -38,6 +38,7 @@ public:
 	Encoder *encRight    =new Encoder(0,1);
 	Encoder *encLeft     =new Encoder(2,3);
 	Encoder *encKicker	 =new Encoder(4,5);
+	DigitalInput *limitArm = new DigitalInput(6);//reads the arm limit switch
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
@@ -160,8 +161,7 @@ public:
 
 	void AutonomousPeriodic() {
 		Rdis=encRight->GetRaw();
-		Ldis=encLeft->GetRaw();
-
+		Ldis=-(encLeft->GetRaw());
 		//Nothing
 		if (autoSelected == NOTHING) {//sit there yah lazy bum
 			Rightgo=0;
@@ -177,7 +177,6 @@ public:
 				greenholder=1;
 			}
 			//
-
 			else if(greenholder&&!push){
 			//	cv::addWeighted(pregreen,9,green,-10,0,green,-1);//meshes pregreen and green then outputs to green
 				cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
@@ -193,16 +192,12 @@ public:
 			//	point2.y = rect1.y+rect1.height;
 
 			//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
-
 				cheese.PutFrame(green);
 			}
 			else{
-
 			}
-
 		}
 		//Nothing
-
 		//DOA
 		else {//Dead On Arrival AKA Dead Reckoning
 
@@ -216,7 +211,6 @@ public:
 			}
 		}
 		//DOA
-
 		robotDrive->TankDrive(Leftgo,Rightgo);
 	}
 
@@ -238,15 +232,17 @@ public:
 		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
+		Rdis=encRight->GetRaw();
+		Ldis=-(encLeft->GetRaw());
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
 		//Drive
 
 		//Kicker
+		stop_arm1=limitArm->Get();
 		if(!kickerrunning){
 			kickerswitcher   =gamePad->GetRawButton(1);
 		}
-
 		if(kickerswitcher&&!kickerdummy){//Forward
 			kickerrunning=1;
 			kicker->Set(-.5);//Move Forwards
@@ -270,10 +266,8 @@ public:
 		else{//Stop if no button
 			kicker->Set(0);
 		}
-
 		SmartDashboard::PutNumber("enckicker",encKicker->GetRaw());
 		//Kicker
-
 		//Climber
 		climbspeed=gamePad->GetRawAxis(0);
 		if(fabs(climbspeed)>=.5){
@@ -297,8 +291,9 @@ public:
 
 		//SmartDashboard
 		SmartDashboard::PutNumber("climbspeed",climbspeed);
-		SmartDashboard::PutNumber("encRight",encRight->GetRaw());
-		SmartDashboard::PutNumber("encLeft",encLeft->GetRaw());
+		SmartDashboard::PutNumber("encRight",Rdis);
+		SmartDashboard::PutNumber("encLeft", Ldis);
+		SmartDashboard::PutNumber("limitArm", stop_arm1);
 
 		SmartDashboard::PutNumber("Leftgo",Leftgo);
 		SmartDashboard::PutNumber("Rightgo",Rightgo);
@@ -338,13 +333,13 @@ START_ROBOT_CLASS(Robot)
  * 1ft=~720 check this
  *  RRio Pins
  *  	DIO
- *  	0	A Right Wheel Encoder
- *  	1	B "
- *  	2	A Left Wheel Encoder
- *  	3	B "
+ *  	0	A Right Wheel Encoder   (Blue wire)
+ *  	1	B "        (Yellow Wire)
+ *  	2	A Left Wheel Encoder (Blue Wire)
+ *  	3	B "    (Yellow Wire)
  *  	4	A Kicker Encoder
  *  	5	B "
- *  	6
+ *  	6       Limit Switch (kicker arm) for the encoder calibration (registration mark)
  *  	7
  *  	8
  *  	9
