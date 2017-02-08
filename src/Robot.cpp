@@ -44,24 +44,24 @@ public:
 
 	//VISION DECL START
 
-		//Auto Camera
+	//Auto Camera
 	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
 
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
-			cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
-			cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
-		//Auto Camera
+	cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
+	cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
+	//Auto Camera
 
-		//Matrixes
-		cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
-		cv::Mat green 		= cv::Mat(640,480,CV_8U);
-		//Matrixes
+	//Matrixes
+	cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
+	cv::Mat green 		= cv::Mat(640,480,CV_8U);
+	//Matrixes
 
-		//Points and lines
+	//Points and lines
 	//	std::vector<std::vector<cv::Point> > contours;
-		//cv::Point point1,point2;
-		//cv::Rect  rect1;
-		//Points and lines
+	//cv::Point point1,point2;
+	//cv::Rect  rect1;
+	//Points and lines
 
 	//VISION DECL END
 
@@ -107,21 +107,20 @@ public:
 	void RobotInit() {
 		//std::thread camthread(VisionThread);//makes a new thread
 		//camthread.detach();//snaps the thread off to do its own thing
-		cam.SetBrightness(133);
-		cam.SetExposureManual(5);
-		cam.SetExposureManual(-8);
-		cam.SetWhiteBalanceManual(2800);
-		cam.SetResolution(640,480);
 
-		cam2.SetBrightness(133);
-		cam2.SetExposureManual(5);
-		cam2.SetExposureManual(-8);
+		cam2.SetBrightness(150);
+		cam2.SetExposureManual(-6);
 		cam2.SetWhiteBalanceManual(2800);
 		cam2.SetResolution(640,480);
 
+		cam.SetBrightness(150);
+		cam.SetExposureManual(-6);
+		cam.SetWhiteBalanceManual(2800);
+		cam.SetResolution(640,480);
 
 		chooser.AddDefault(DOA, DOA);
 		chooser.AddObject(NOTHING, NOTHING);
+		chooser.AddObject(Light, Light);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
 
 		encRight->Reset();
@@ -146,9 +145,18 @@ public:
 		// std::string autoSelected = SmartDashboard::GetString("Auto Selector", autoNameDefault);
 		std::cout << "Auto selected: " << autoSelected << std::endl;
 
+		stop_arm1=limitArm->Get();
+		while(!stop_arm1){
+			stop_arm1=limitArm->Get();
+			kicker->Set(.25);
+		}
+		kicker->Set(0);
+		encKicker->Reset();
+
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
 			greenholder=0;
+			push=0;
 
 
 		}
@@ -157,7 +165,7 @@ public:
 		}
 	}
 
-//AUTO START
+	//AUTO START
 
 	void AutonomousPeriodic() {
 		Rdis=encRight->GetRaw();
@@ -168,18 +176,24 @@ public:
 			Leftgo=0;
 
 			//
+		}
+		//Nothing
+
+		//Light
+		else if(autoSelected == Light){
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
 				frankenspark->Set(-1);//turn on the lights
-				sleep(5);//1 sec delay for light to turn on
+				sleep(2.5);//1 sec delay for light to turn on
 				autosinker.GrabFrame(green);//grabs a green image
 				frankenspark->Set(0);//turns off light
 				greenholder=1;
 			}
 			//
 			else if(greenholder&&!push){
-			//	cv::addWeighted(pregreen,9,green,-10,0,green,-1);//meshes pregreen and green then outputs to green
-				cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
+				cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
+				//cv::subtract(green,pregreen,green);
+				//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
 				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
 				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
 
@@ -189,19 +203,22 @@ public:
 				//point1.x = rect1.x;//grabs x from rect1
 				//point1.y = rect1.y;//grabs y from rect1
 				//point2.x = rect1.x+rect1.width;//grabs the opposite corner
-			//	point2.y = rect1.y+rect1.height;
+				//	point2.y = rect1.y+rect1.height;
 
-			//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
-				cheese.PutFrame(green);
+				//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
+				push=1;
 			}
 			else{
+				cheese.PutFrame(green);
 			}
+
 		}
-		//Nothing
+		//Light
+
 		//DOA
 		else {//Dead On Arrival AKA Dead Reckoning
 
-			if(Rdis<=2160&&Ldis<=2160){//114.3" from wall to wall of airship ~6 rev
+			if(Rdis<=6117.67&&Ldis<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
 				Rightgo=.75;
 				Leftgo=.75;
 			}
@@ -211,10 +228,11 @@ public:
 			}
 		}
 		//DOA
+
 		robotDrive->TankDrive(Leftgo,Rightgo);
 	}
 
-//AUTO END
+	//AUTO END
 
 	void TeleopInit() {
 		Leftgo      =0;
@@ -223,9 +241,13 @@ public:
 		encRight->Reset();
 		encLeft->Reset();
 
+		cam.SetBrightness(150);
+		cam.SetExposureManual(-6);
+		cam.SetWhiteBalanceManual(2800);
+		cam.SetResolution(640,480);
 	}
 
-//TELE START
+	//TELE START
 
 	void TeleopPeriodic() {
 
@@ -245,9 +267,8 @@ public:
 		}
 		if(kickerswitcher&&!kickerdummy){//Forward
 			kickerrunning=1;
-			kicker->Set(-.5);//Move Forwards
-			encKicker->GetRaw();//Read Enc
-			if((encKicker->GetRaw())>=350){
+			kicker->Set(.5*((encKicker->GetRaw())-650)/650.0-0.5);//Move Forwards PID
+			if((encKicker->GetRaw())>=650){
 				kickerrunning=0;//No Longer Running
 				kickerdummy=1;
 				kicker->StopMotor();
@@ -255,9 +276,8 @@ public:
 		}
 		else if(kickerswitcher&&kickerdummy){//Reverse
 			kickerrunning=1;
-			kicker->Set(.5);//Move Backwards
-			encKicker->GetRaw();//Read Enc
-			if((encKicker->GetRaw())<=100){//Stop Early to Comp for Drift
+			kicker->Set(.5*((encKicker->GetRaw())-389.0)/389.0+0.12);//Move Backwards PID and slows dows
+			if((encKicker->GetRaw())<=389){//Stop Early to Comp for Drift
 				kickerrunning=0;//No Longer Running
 				kickerdummy=0;
 				kicker->StopMotor();
@@ -300,7 +320,7 @@ public:
 		//SmartDashboard
 	}
 
-//TELE END
+	//TELE END
 
 	void TestPeriodic() {
 		lw->Run();
@@ -311,12 +331,15 @@ private://why is this down here?
 	frc::SendableChooser<std::string> chooser;
 	const std::string NOTHING = "NOTHING!";
 	const std::string DOA = "FORWARD!";
+	const std::string Light = "LIGHT!";
 
 	std::string autoSelected;
 };
 
 START_ROBOT_CLASS(Robot)
+
 /* Hardware map of the robot "TBA"  (CB5)
+ *	1ft=883.95 ENCODERS
  *
  * 		PWM
  *		0 Front Left
@@ -330,7 +353,6 @@ START_ROBOT_CLASS(Robot)
  *		8
  *		9
  *
- * 1ft=~720 check this
  *  RRio Pins
  *  	DIO
  *  	0	A Right Wheel Encoder   (Blue wire)
