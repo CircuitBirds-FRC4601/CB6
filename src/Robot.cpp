@@ -108,14 +108,14 @@ public:
 		//std::thread camthread(VisionThread);//makes a new thread
 		//camthread.detach();//snaps the thread off to do its own thing
 
-		cam2.SetBrightness(150);
-		cam2.SetExposureManual(-6);
-		cam2.SetWhiteBalanceManual(2800);
+		cam2.SetBrightness(10);
+		//cam2.SetExposureManual(-6);
+		//cam2.SetWhiteBalanceManual(2800);
 		cam2.SetResolution(640,480);
 
-		cam.SetBrightness(150);
-		cam.SetExposureManual(-6);
-		cam.SetWhiteBalanceManual(2800);
+		cam.SetBrightness(50);
+		//cam.SetExposureManual(-6);
+		//cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
 
 		chooser.AddDefault(DOA, DOA);
@@ -211,7 +211,6 @@ public:
 			else{
 				cheese.PutFrame(green);
 			}
-
 		}
 		//Light
 
@@ -241,9 +240,9 @@ public:
 		encRight->Reset();
 		encLeft->Reset();
 
-		cam.SetBrightness(150);
-		cam.SetExposureManual(-6);
-		cam.SetWhiteBalanceManual(2800);
+		//cam.SetBrightness(150);
+		//cam.SetExposureManual(-6);
+		//cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
 	}
 
@@ -267,8 +266,8 @@ public:
 		}
 		if(kickerswitcher&&!kickerdummy){//Forward
 			kickerrunning=1;
-			kicker->Set(.5*((encKicker->GetRaw())-650)/650.0-0.5);//Move Forwards PID
-			if((encKicker->GetRaw())>=650){
+			kicker->Set(.5*((encKicker->GetRaw())-260)/260.0-0.5);//Move Forwards PID
+			if((encKicker->GetRaw())>=260){
 				kickerrunning=0;//No Longer Running
 				kickerdummy=1;
 				kicker->StopMotor();
@@ -276,8 +275,8 @@ public:
 		}
 		else if(kickerswitcher&&kickerdummy){//Reverse
 			kickerrunning=1;
-			kicker->Set(.5*((encKicker->GetRaw())-389.0)/389.0+0.12);//Move Backwards PID and slows dows
-			if((encKicker->GetRaw())<=389){//Stop Early to Comp for Drift
+			kicker->Set(.5*((encKicker->GetRaw())-0.0)/260.0+0.12);//Move Backwards PID and slows dows
+			if((encKicker->GetRaw())<=0){//Stop Early to Comp for Drift
 				kickerrunning=0;//No Longer Running
 				kickerdummy=0;
 				kicker->StopMotor();
