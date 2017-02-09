@@ -18,6 +18,7 @@ public:
 
 	double Leftgo,Rightgo,Rdis,Ldis;
 	double climbspeed,light,push;
+	bool forwardReach,backUp;
 	bool   kickerswitcher;
 	bool   kickerdummy,kickerrunning;
 	bool   greenholder, stop_arm1;
@@ -108,18 +109,18 @@ public:
 		//std::thread camthread(VisionThread);//makes a new thread
 		//camthread.detach();//snaps the thread off to do its own thing
 
-		cam2.SetBrightness(10);
-		//cam2.SetExposureManual(-6);
-		//cam2.SetWhiteBalanceManual(2800);
+		cam2.SetBrightness(150);
+		cam2.SetExposureManual(-6);
+		cam2.SetWhiteBalanceManual(2800);
 		cam2.SetResolution(640,480);
 
-		cam.SetBrightness(50);
-		//cam.SetExposureManual(-6);
-		//cam.SetWhiteBalanceManual(2800);
+		cam.SetBrightness(150);
+		cam.SetExposureManual(-6);
+		cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
 
-		chooser.AddDefault(DOA, DOA);
-		chooser.AddObject(NOTHING, NOTHING);
+		chooser.AddDefault(NOTHING, NOTHING);
+		chooser.AddObject(DOA, DOA);
 		chooser.AddObject(Light, Light);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
 
@@ -153,6 +154,8 @@ public:
 		kicker->Set(0);
 		encKicker->Reset();
 
+		forwardReach=0;
+
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
 			greenholder=0;
@@ -161,6 +164,8 @@ public:
 
 		}
 		else {
+			kickerdummy=0;
+			backUp=0;
 			// Default Auto goes here
 		}
 	}
@@ -211,19 +216,56 @@ public:
 			else{
 				cheese.PutFrame(green);
 			}
+
 		}
 		//Light
 
 		//DOA
 		else {//Dead On Arrival AKA Dead Reckoning
 
-			if(Rdis<=6117.67&&Ldis<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
-				Rightgo=.75;
-				Leftgo=.75;
+			if(!forwardReach&&Rdis<=6117.67&&Ldis<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
+				Rightgo=-.75;
+				Leftgo=-.75;
 			}
 			else{
+				forwardReach=1;
 				Rightgo=0;
 				Leftgo=0;
+			}
+
+			if(forwardReach){
+
+				if(!backUp&&!kickerdummy){//Forward
+					kicker->Set(.5*((encKicker->GetRaw())-301.0)/301.0-0.5);//Move Forwards PID
+					if((encKicker->GetRaw())>=301){
+						kickerdummy=1;
+						kicker->StopMotor();
+						encRight->Reset();
+						encLeft->Reset();
+						sleep(.5);
+					}
+				}
+				else if(!backUp){
+					Rightgo=.25;
+					Leftgo=.25;
+					if(fabs(encRight->GetRaw())>=1325.95){
+						backUp=1;
+						Rightgo=0;
+						Leftgo=0;
+					}
+				}
+				else if(kickerdummy){//Reverse
+					kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.05);//Move Backwards PID and slows dows
+					if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
+						kickerdummy=0;
+						kicker->StopMotor();
+					}
+				}
+				else{//Stop if no button
+					kicker->Set(0);
+					forwardReach=0;
+				}
+
 			}
 		}
 		//DOA
@@ -240,9 +282,9 @@ public:
 		encRight->Reset();
 		encLeft->Reset();
 
-		//cam.SetBrightness(150);
-		//cam.SetExposureManual(-6);
-		//cam.SetWhiteBalanceManual(2800);
+		cam.SetBrightness(150);
+		cam.SetExposureManual(-6);
+		cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
 	}
 
@@ -260,14 +302,13 @@ public:
 		//Drive
 
 		//Kicker
-		stop_arm1=limitArm->Get();
 		if(!kickerrunning){
 			kickerswitcher   =gamePad->GetRawButton(1);
 		}
 		if(kickerswitcher&&!kickerdummy){//Forward
 			kickerrunning=1;
-			kicker->Set(.5*((encKicker->GetRaw())-260)/260.0-0.5);//Move Forwards PID
-			if((encKicker->GetRaw())>=260){
+			kicker->Set(.5*((encKicker->GetRaw())-301.0)/301.0-0.5);//Move Forwards PID
+			if((encKicker->GetRaw())>=301){
 				kickerrunning=0;//No Longer Running
 				kickerdummy=1;
 				kicker->StopMotor();
@@ -275,8 +316,8 @@ public:
 		}
 		else if(kickerswitcher&&kickerdummy){//Reverse
 			kickerrunning=1;
-			kicker->Set(.5*((encKicker->GetRaw())-0.0)/260.0+0.12);//Move Backwards PID and slows dows
-			if((encKicker->GetRaw())<=0){//Stop Early to Comp for Drift
+			kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.05);//Move Backwards PID and slows dows
+			if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
 				kickerrunning=0;//No Longer Running
 				kickerdummy=0;
 				kicker->StopMotor();
