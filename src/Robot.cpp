@@ -15,13 +15,14 @@
 class Robot: public frc::IterativeRobot {
 
 public:
-
+	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diffinteg[641], integral[641],averaging_width;
+	int max_integral,maxposn1,min_integral,minposn1,tempi;
 	double Leftgo,Rightgo,Rdis,Ldis;
 	double climbspeed,light,push;
 	bool forwardReach,backUp;
-	bool   kickerswitcher;
+	bool   kickerdown,kickerup;
 	bool   kickerdummy,kickerrunning;
-	bool   greenholder, stop_arm1;
+	bool   greenholder, superdum, stop_arm1;
 
 
 	Joystick *rightDrive =new Joystick(0,2,9);
@@ -227,7 +228,7 @@ public:
 				Rightgo=-.75;
 				Leftgo=-.75;
 			}
-			else{
+			else if(!forwardReach){
 				forwardReach=1;
 				Rightgo=0;
 				Leftgo=0;
@@ -261,9 +262,10 @@ public:
 						kicker->StopMotor();
 					}
 				}
-				else{//Stop if no button
-					kicker->Set(0);
-					forwardReach=0;
+				else{//stop
+					Rightgo=0;
+					Leftgo=0;
+
 				}
 
 			}
@@ -271,6 +273,8 @@ public:
 		//DOA
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
+		SmartDashboard::PutNumber("encRight",Rdis);
+		SmartDashboard::PutNumber("encLeft", Ldis);
 	}
 
 	//AUTO END
@@ -282,15 +286,78 @@ public:
 		encRight->Reset();
 		encLeft->Reset();
 
-		cam.SetBrightness(150);
-		cam.SetExposureManual(-6);
-		cam.SetWhiteBalanceManual(2800);
-		cam.SetResolution(640,480);
 	}
 
 	//TELE START
 
 	void TeleopPeriodic() {
+		//Video Practice
+		superdum=gamePad->GetRawButton(7);
+		greenholder=0;
+		push=0;
+		max_integral = 0;
+		min_integral = 0;
+		while(superdum){
+					if(!greenholder){
+						autosinker.GrabFrame(pregreen);//grabs a pregreen image
+						frankenspark->Set(-1);//turn on the lights
+						sleep(2.5);//1 sec delay for light to turn on
+						autosinker.GrabFrame(green);//grabs a green image
+						frankenspark->Set(0);//turns off light
+						greenholder=1;
+					}
+					//
+					else if(greenholder&&!push){
+						cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
+						cv::threshold(green,green,0,0,cv::THRESH_TOZERO);
+						//cv::subtract(green,pregreen,green);
+						//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
+						//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
+						//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+
+						//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
+						//we are probably going to need to filter these contours
+
+						//point1.x = rect1.x;//grabs x from rect1
+						//point1.y = rect1.y;//grabs y from rect1
+						//point2.x = rect1.x+rect1.width;//grabs the opposite corner
+						//	point2.y = rect1.y+rect1.height;
+
+						//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
+						 push=1;
+						// Dr. C.'s codelines for integrated luminosity lines
+						 num_columns = 640;
+						 num_rows = 480;
+						 stripe_start_row = 120;
+						 stripe_width = 40;
+                         for(ii=1; ii<num_columns; ii++){
+                        	  integral[ii] = 0;
+						      for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
+						    	  integral[ii] = integral[ii]+green.at<uchar>(ii,jj);
+						      }
+						      diffinteg[ii] = integral[ii]-integral[ii-1]; // find the boundaries
+						      tempi = diffinteg[ii];  //temporary integer; speeds up lookup in next lines.
+						      if(max_integral<tempi){//if new value exedes old, max set to new max
+                            	  maxposn1 = ii;//gets value of max
+                            	  max_integral=tempi;
+                              }
+                              if(min_integral>tempi){//if new value exedes old min, set to new min
+                            	  minposn1 = ii;
+                            	  min_integral=tempi;
+                              }
+                         }
+						// end of Dr. C.'s lines.
+					}
+					else{
+						SmartDashboard::PutNumber("light first min ", minposn1);
+						SmartDashboard::PutNumber("light first max ", maxposn1);
+						//rectangle(green, cv::Point(0, stripe_start_row), cv::Point(640, stripe_start_row+stripe_width),cv::Scalar(255, 255, 255), 5);
+						cheese.PutFrame(green);
+						superdum=0;
+
+				}
+		}
+		//Video Practice
 
 		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
@@ -303,9 +370,11 @@ public:
 
 		//Kicker
 		if(!kickerrunning){
-			kickerswitcher   =gamePad->GetRawButton(1);
+			kickerdown   =gamePad->GetRawButton(1);
+			kickerup   =gamePad->GetRawButton(2);
 		}
-		if(kickerswitcher&&!kickerdummy){//Forward
+
+		if(kickerdown&&!kickerdummy){//Forward
 			kickerrunning=1;
 			kicker->Set(.5*((encKicker->GetRaw())-301.0)/301.0-0.5);//Move Forwards PID
 			if((encKicker->GetRaw())>=301){
@@ -314,13 +383,13 @@ public:
 				kicker->StopMotor();
 			}
 		}
-		else if(kickerswitcher&&kickerdummy){//Reverse
+		else if(kickerup&&kickerdummy){//Reverse
 			kickerrunning=1;
-			kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.05);//Move Backwards PID and slows dows
+			kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.1);//Move Backwards PID and slows dows
 			if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
 				kickerrunning=0;//No Longer Running
 				kickerdummy=0;
-				kicker->StopMotor();
+				kicker->Set(0);
 			}
 		}
 		else{//Stop if no button
