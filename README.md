@@ -1,5 +1,5 @@
 # CB5
-Chuga Chuga CHOO CHOO
+Computer Vision "egg salad" ....
 FULL STEAM AHEAD
 # Todo
 1. Make it work
