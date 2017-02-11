@@ -15,8 +15,8 @@
 class Robot: public frc::IterativeRobot {
 
 public:
-	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diffinteg[641], integral[641],averaging_width;
-	int max_integral,maxposn1,min_integral,minposn1,tempi;
+	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diff_int[641], integral[641];
+	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int;
 	double Leftgo,Rightgo,Rdis,Ldis;
 	double climbspeed,light,push;
 	bool forwardReach,backUp;
@@ -295,8 +295,6 @@ public:
 		superdum=gamePad->GetRawButton(7);
 		greenholder=0;
 		push=0;
-		max_integral = 0;
-		min_integral = 0;
 		while(superdum){
 					if(!greenholder){
 						autosinker.GrabFrame(pregreen);//grabs a pregreen image
@@ -325,32 +323,112 @@ public:
 
 						//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
 						 push=1;
-						// Dr. C.'s codelines for integrated luminosity lines
+		// Dr. C.'s codelines for integrated luminosity lines
 						 num_columns = 640;
 						 num_rows = 480;
 						 stripe_start_row = 120;
 						 stripe_width = 40;
-                         for(ii=1; ii<num_columns; ii++){
+						 max_integral = 0;
+				  		 min_integral = 0;
+				  		 cutoff_intensity = 13;
+                         for(ii=2; ii<num_columns; ii++){
                         	  integral[ii] = 0;
 						      for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
-						    	  integral[ii] = integral[ii]+green.at<uchar>(ii,jj);
+						    	  integral[ii] = integral[ii]+green.at<uchar>(ii,jj)+abs(green.at<uchar>(ii,jj));
 						      }
-						      diffinteg[ii] = integral[ii]-integral[ii-1]; // find the boundaries
-						      tempi = diffinteg[ii];  //temporary integer; speeds up lookup in next lines.
-						      if(max_integral<tempi){//if new value exedes old, max set to new max
-                            	  maxposn1 = ii;//gets value of max
+						      if (integral[ii]<cutoff_intensity){
+						    	  integral[ii] = 0;      //assume that we reach zero somewhere inbetween the stripes
+						      }
+						      diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
+						      tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+						      if(max_integral<tempi){    //if new value exceeds old, max set to new max
+                            	  maxposn1 = ii;         //gets value of global max
                             	  max_integral=tempi;
                               }
-                              if(min_integral>tempi){//if new value exedes old min, set to new min
+                              if(min_integral>tempi){    //if new value exceeds old min, set to new global min
                             	  minposn1 = ii;
                             	  min_integral=tempi;
                               }
                          }
-						// end of Dr. C.'s lines.
+                         max_integral=0; 				    //reuse these
+                         min_integral=0;
+                         done_int = 0; 						// flag to say when done with maxs/mins in order.
+                         if (maxposn1>minposn1){            // here put the extrema in order.
+                        	 maxposn2 = maxposn1;
+                        	 for(ii=2; ii<minposn1; ii++){
+                        		 tempi = diff_int[ii];
+                        		 if(max_integral<tempi){    //if new value exceeds old, max set to new max
+                        			 maxposn1 = ii;         //gets value of max
+                        		     max_integral=tempi;
+                        		 }
+                        	 }
+                        	 for(ii=maxposn2; ii<num_rows; ii++){
+                        		 tempi = diff_int[ii];
+                        		 if(min_integral>tempi){    //if new value exceeds old min, set to new min
+                        		      minposn2 = ii;
+                        		      min_integral=tempi;
+                        		 }
+                             }
+                        	 done_int = 1;                  // signal all done.
+                         }
+                         if ((maxposn1<minposn1)&&(done_int==0)) { // in this configuration all could be fine IF there is no zero between the posn...
+                        	 flagi = 0;
+                        	 for(ii=maxposn1; ii<minposn1; ii++){
+                        		 if(integral[ii]==0){
+                        			 flagi=1;               // SO they are not in the canonical order!
+                        		 }
+                        	 }
+                        	 if(flagi==0){					//cannonical order, find others and quit
+                        		 for(ii=minposn1; ii<num_rows; ii++){
+                        			 tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+                        		     if(max_integral<tempi){    //if new value exceeds old, max set to new max
+                        			       maxposn2 = ii;         //gets value of global max
+                        			       max_integral=tempi;
+                        			 }
+                        			 if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+                        			       minposn2 = ii;
+                        			       min_integral=tempi;
+                        			 }
+                        		 }
+                        		 if(maxposn2>minposn2){
+                        		     done_int=0;                 // still something is screwed up. Slew the 'bot and try again
+                        		 }
+                        		 else{
+                        			 done_int=1;
+                        		 }
+                        	 }
+                            if(flagi==1){
+                            	minposn2=minposn1;
+                            	for(ii=maxposn1; ii<minposn2; ii++){
+                            		tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+                            		if(max_integral<tempi){    //if new value exceeds old, max set to new max
+                            		      maxposn2 = ii;         //gets value of global max
+                            		      max_integral=tempi;
+                            		}
+                            		if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+                            		      minposn1 = ii;
+                            		      min_integral=tempi;
+                            		}
+                            	}
+                            	if(maxposn2<minposn1){
+                            	   done_int=0;                 // still something is screwed up. Slew the 'bot and try again
+                            	}
+                            	else{
+                            	   done_int=1;
+                            	}
+                            }
+                         }
+// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
+//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
+		// end of Dr. C.'s lines.
 					}
 					else{
-						SmartDashboard::PutNumber("light first min ", minposn1);
-						SmartDashboard::PutNumber("light first max ", maxposn1);
+						SmartDashboard::PutNumber("Computer Vision Success", done_int);
+						SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
+						SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
+						SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
+						SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
+
 						//rectangle(green, cv::Point(0, stripe_start_row), cv::Point(640, stripe_start_row+stripe_width),cv::Scalar(255, 255, 255), 5);
 						cheese.PutFrame(green);
 						superdum=0;
