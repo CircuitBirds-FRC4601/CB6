@@ -249,28 +249,28 @@ public:
 
 			if(forwardReach){
 
-				if(!backUp&&!kickerdummy){//Forward
+				if((!backUp)&&(!kickerdummy)){//Forward
 					kicker->Set(.5*((encKicker->GetRaw())-arm_set_down)/arm_max-0.5);//Move Forwards PID
-					if((encKicker->GetRaw())>=301){
+					if((encKicker->GetRaw())>=arm_set_down){
 						kickerdummy=1;
-						kicker->StopMotor();
+						kicker->Set(0);
 						encRight->Reset();
 						encLeft->Reset();
-						sleep(1.5);
 					}
 				}
 				else if(!backUp){
-					Rightgo=.25;
-					Leftgo=.25;
-					if(fabs(encRight->GetRaw())>=1325.95){
-						backUp=1;
+					Rightgo=.75;
+					Leftgo=.75;
+					SmartDashboard::PutNumber("RIGHTTHTHHT", encRight->GetRaw());
+					if(encRight->GetRaw()<=-255){
 						Rightgo=0;
 						Leftgo=0;
+						backUp=1;
 					}
 				}
 				else if(kickerdummy){//Reverse
-					kicker->Set(0.75*((encKicker->GetRaw())-arm_set_up)/arm_max+0.05);//Move Backwards PID and slows dows
-					if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
+					kicker->Set(.95*((encKicker->GetRaw())-arm_set_up)/arm_max+0.1);//Move Backwards PID and slows down
+					if((encKicker->GetRaw())<=arm_set_up){//Stop Early to Comp for Drift
 						kickerdummy=0;
 						kicker->StopMotor();
 					}
