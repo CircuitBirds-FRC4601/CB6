@@ -15,32 +15,41 @@
 class Robot: public frc::IterativeRobot {
 
 public:
+
 	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diff_int[641], integral[641];
 	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int;
+	int arm_max=355, arm_set_up=73, arm_set_down=349, byte;
 	double Leftgo,Rightgo,Rdis,Ldis;
-	double climbspeed,light,push;
 	bool forwardReach,backUp;
-	bool   kickerdown,kickerup;
+	double climbspeed,shotspeed,light,push, heading, headinglast;
+	bool   kickerdown,kickerup,kickerEreset;
 	bool   kickerdummy,kickerrunning;
-	bool   greenholder, superdum, stop_arm1;
+	bool   greenholder, superdum, stop_arm1, state;
 
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
 	Joystick *gamePad    =new Joystick(2,6,9);
 
-	Talon *fLeft         =new Talon(0);
-	Talon *fRight        =new Talon(1);
-	Talon *bLeft         =new Talon(2);
-	Talon *bRight        =new Talon(3);
-	Spark *kicker        =new Spark(4);
-	Spark *climber       =new Spark(5);
+	Spark *fLeft         =new Spark(0);
+	Spark *fRight        =new Spark(1);
+	Spark *bLeft         =new Spark(2);
+	Spark *bRight        =new Spark(3);
+	Talon *kicker        =new Talon(4);
+	Talon *climber       =new Talon(5);
 	Spark *frankenspark  =new Spark(6);
+	Talon *shooter		 =new Talon(7);
 
 	Encoder *encRight    =new Encoder(0,1);
 	Encoder *encLeft     =new Encoder(2,3);
 	Encoder *encKicker	 =new Encoder(4,5);
+
 	DigitalInput *limitArm = new DigitalInput(6);//reads the arm limit switch
+	DigitalOutput *SDC = new DigitalOutput(7);//
+	DigitalInput *SDA = new DigitalInput(8);//
+
+	frc::ADXRS450_Gyro *gyro =new frc::ADXRS450_Gyro(frc::SPI::kOnboardCS0);
+
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
 
@@ -127,6 +136,7 @@ public:
 
 		encRight->Reset();
 		encLeft->Reset();
+		gyro->Calibrate();
 
 	}
 
@@ -148,14 +158,15 @@ public:
 		std::cout << "Auto selected: " << autoSelected << std::endl;
 
 		stop_arm1=limitArm->Get();
-		while(!stop_arm1){
+
+			while(!stop_arm1){
 			stop_arm1=limitArm->Get();
 			kicker->Set(.25);
 		}
 		kicker->Set(0);
 		encKicker->Reset();
 
-		forwardReach=0;
+
 
 		if (autoSelected == NOTHING) {
 			// Custom Auto goes here
@@ -165,6 +176,7 @@ public:
 
 		}
 		else {
+			forwardReach=0;
 			kickerdummy=0;
 			backUp=0;
 			// Default Auto goes here
@@ -203,6 +215,7 @@ public:
 				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
 				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
 
+
 				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
 				//we are probably going to need to filter these contours
 
@@ -237,13 +250,13 @@ public:
 			if(forwardReach){
 
 				if(!backUp&&!kickerdummy){//Forward
-					kicker->Set(.5*((encKicker->GetRaw())-301.0)/301.0-0.5);//Move Forwards PID
+					kicker->Set(.5*((encKicker->GetRaw())-arm_set_down)/arm_max-0.5);//Move Forwards PID
 					if((encKicker->GetRaw())>=301){
 						kickerdummy=1;
 						kicker->StopMotor();
 						encRight->Reset();
 						encLeft->Reset();
-						sleep(.5);
+						sleep(1.5);
 					}
 				}
 				else if(!backUp){
@@ -256,7 +269,7 @@ public:
 					}
 				}
 				else if(kickerdummy){//Reverse
-					kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.05);//Move Backwards PID and slows dows
+					kicker->Set(0.75*((encKicker->GetRaw())-arm_set_up)/arm_max+0.05);//Move Backwards PID and slows dows
 					if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
 						kickerdummy=0;
 						kicker->StopMotor();
@@ -269,7 +282,8 @@ public:
 				}
 
 			}
-		}
+
+	}
 		//DOA
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
@@ -285,7 +299,6 @@ public:
 		light       =0;
 		encRight->Reset();
 		encLeft->Reset();
-
 	}
 
 	//TELE START
@@ -296,146 +309,162 @@ public:
 		greenholder=0;
 		push=0;
 		while(superdum){
-					if(!greenholder){
-						autosinker.GrabFrame(pregreen);//grabs a pregreen image
-						frankenspark->Set(-1);//turn on the lights
-						sleep(2.5);//1 sec delay for light to turn on
-						autosinker.GrabFrame(green);//grabs a green image
-						frankenspark->Set(0);//turns off light
-						greenholder=1;
+			if(!greenholder){
+				autosinker.GrabFrame(pregreen);//grabs a pregreen image
+				frankenspark->Set(-1);//turn on the lights
+				sleep(2.5);//1 sec delay for light to turn on
+				autosinker.GrabFrame(green);//grabs a green image
+				frankenspark->Set(0);//turns off light
+				greenholder=1;
+			}
+			//
+			else if(greenholder&&!push){
+				cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
+				cv::threshold(green,green,0,0,cv::THRESH_TOZERO);
+				//cv::subtract(green,pregreen,green);
+				//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
+				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
+				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+
+				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
+				//we are probably going to need to filter these contours
+
+				//point1.x = rect1.x;//grabs x from rect1
+				//point1.y = rect1.y;//grabs y from rect1
+				//point2.x = rect1.x+rect1.width;//grabs the opposite corner
+				//	point2.y = rect1.y+rect1.height;
+
+				//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
+				push=1;
+				// Dr. C.'s codelines for integrated luminosity lines
+				num_columns = 640;
+				num_rows = 480;
+				stripe_start_row = 120;
+				stripe_width = 40;
+				max_integral = 0;
+				min_integral = 0;
+				cutoff_intensity = 13;
+				for(ii=2; ii<num_columns; ii++){
+					integral[ii] = 0;
+					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
+						integral[ii] = integral[ii]+green.at<uchar>(ii,jj)+abs(green.at<uchar>(ii,jj));
 					}
-					//
-					else if(greenholder&&!push){
-						cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
-						cv::threshold(green,green,0,0,cv::THRESH_TOZERO);
-						//cv::subtract(green,pregreen,green);
-						//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
-						//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
-						//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
-
-						//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
-						//we are probably going to need to filter these contours
-
-						//point1.x = rect1.x;//grabs x from rect1
-						//point1.y = rect1.y;//grabs y from rect1
-						//point2.x = rect1.x+rect1.width;//grabs the opposite corner
-						//	point2.y = rect1.y+rect1.height;
-
-						//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
-						 push=1;
-		// Dr. C.'s codelines for integrated luminosity lines
-						 num_columns = 640;
-						 num_rows = 480;
-						 stripe_start_row = 120;
-						 stripe_width = 40;
-						 max_integral = 0;
-				  		 min_integral = 0;
-				  		 cutoff_intensity = 13;
-                         for(ii=2; ii<num_columns; ii++){
-                        	  integral[ii] = 0;
-						      for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
-						    	  integral[ii] = integral[ii]+green.at<uchar>(ii,jj)+abs(green.at<uchar>(ii,jj));
-						      }
-						      if (integral[ii]<cutoff_intensity){
-						    	  integral[ii] = 0;      //assume that we reach zero somewhere inbetween the stripes
-						      }
-						      diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
-						      tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-						      if(max_integral<tempi){    //if new value exceeds old, max set to new max
-                            	  maxposn1 = ii;         //gets value of global max
-                            	  max_integral=tempi;
-                              }
-                              if(min_integral>tempi){    //if new value exceeds old min, set to new global min
-                            	  minposn1 = ii;
-                            	  min_integral=tempi;
-                              }
-                         }
-                         max_integral=0; 				    //reuse these
-                         min_integral=0;
-                         done_int = 0; 						// flag to say when done with maxs/mins in order.
-                         if (maxposn1>minposn1){            // here put the extrema in order.
-                        	 maxposn2 = maxposn1;
-                        	 for(ii=2; ii<minposn1; ii++){
-                        		 tempi = diff_int[ii];
-                        		 if(max_integral<tempi){    //if new value exceeds old, max set to new max
-                        			 maxposn1 = ii;         //gets value of max
-                        		     max_integral=tempi;
-                        		 }
-                        	 }
-                        	 for(ii=maxposn2; ii<num_rows; ii++){
-                        		 tempi = diff_int[ii];
-                        		 if(min_integral>tempi){    //if new value exceeds old min, set to new min
-                        		      minposn2 = ii;
-                        		      min_integral=tempi;
-                        		 }
-                             }
-                        	 done_int = 1;                  // signal all done.
-                         }
-                         if ((maxposn1<minposn1)&&(done_int==0)) { // in this configuration all could be fine IF there is no zero between the posn...
-                        	 flagi = 0;
-                        	 for(ii=maxposn1; ii<minposn1; ii++){
-                        		 if(integral[ii]==0){
-                        			 flagi=1;               // SO they are not in the canonical order!
-                        		 }
-                        	 }
-                        	 if(flagi==0){					//cannonical order, find others and quit
-                        		 for(ii=minposn1; ii<num_rows; ii++){
-                        			 tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-                        		     if(max_integral<tempi){    //if new value exceeds old, max set to new max
-                        			       maxposn2 = ii;         //gets value of global max
-                        			       max_integral=tempi;
-                        			 }
-                        			 if(min_integral>tempi){    //if new value exceeds old min, set to new global min
-                        			       minposn2 = ii;
-                        			       min_integral=tempi;
-                        			 }
-                        		 }
-                        		 if(maxposn2>minposn2){
-                        		     done_int=0;                 // still something is screwed up. Slew the 'bot and try again
-                        		 }
-                        		 else{
-                        			 done_int=1;
-                        		 }
-                        	 }
-                            if(flagi==1){
-                            	minposn2=minposn1;
-                            	for(ii=maxposn1; ii<minposn2; ii++){
-                            		tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-                            		if(max_integral<tempi){    //if new value exceeds old, max set to new max
-                            		      maxposn2 = ii;         //gets value of global max
-                            		      max_integral=tempi;
-                            		}
-                            		if(min_integral>tempi){    //if new value exceeds old min, set to new global min
-                            		      minposn1 = ii;
-                            		      min_integral=tempi;
-                            		}
-                            	}
-                            	if(maxposn2<minposn1){
-                            	   done_int=0;                 // still something is screwed up. Slew the 'bot and try again
-                            	}
-                            	else{
-                            	   done_int=1;
-                            	}
-                            }
-                         }
-// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
-//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
-		// end of Dr. C.'s lines.
+					if (integral[ii]<cutoff_intensity){
+						integral[ii] = 0;      //assume that we reach zero somewhere inbetween the stripes
 					}
-					else{
-						SmartDashboard::PutNumber("Computer Vision Success", done_int);
-						SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
-						SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
-						SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
-						SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
-
-						//rectangle(green, cv::Point(0, stripe_start_row), cv::Point(640, stripe_start_row+stripe_width),cv::Scalar(255, 255, 255), 5);
-						cheese.PutFrame(green);
-						superdum=0;
-
+					diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
+					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+					if(max_integral<tempi){    //if new value exceeds old, max set to new max
+						maxposn1 = ii;         //gets value of global max
+						max_integral=tempi;
+					}
+					if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+						minposn1 = ii;
+						min_integral=tempi;
+					}
 				}
+				max_integral=0; 				    //reuse these
+				min_integral=0;
+				done_int = 0; 						// flag to say when done with maxs/mins in order.
+				if (maxposn1>minposn1){            // here put the extrema in order.
+					maxposn2 = maxposn1;
+					for(ii=2; ii<minposn1; ii++){
+						tempi = diff_int[ii];
+						if(max_integral<tempi){    //if new value exceeds old, max set to new max
+							maxposn1 = ii;         //gets value of max
+							max_integral=tempi;
+						}
+					}
+					for(ii=maxposn2; ii<num_rows; ii++){
+						tempi = diff_int[ii];
+						if(min_integral>tempi){    //if new value exceeds old min, set to new min
+							minposn2 = ii;
+							min_integral=tempi;
+						}
+					}
+					done_int = 1;                  // signal all done.
+				}
+				if ((maxposn1<minposn1)&&(done_int==0)) { // in this configuration all could be fine IF there is no zero between the posn...
+					flagi = 0;
+					for(ii=maxposn1; ii<minposn1; ii++){
+						if(integral[ii]==0){
+							flagi=1;               // SO they are not in the canonical order!
+						}
+					}
+					if(flagi==0){					//cannonical order, find others and quit
+						for(ii=minposn1; ii<num_rows; ii++){
+							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+							if(max_integral<tempi){    //if new value exceeds old, max set to new max
+								maxposn2 = ii;         //gets value of global max
+								max_integral=tempi;
+							}
+							if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+								minposn2 = ii;
+								min_integral=tempi;
+							}
+						}
+						if(maxposn2>minposn2){
+							done_int=0;                 // still something is screwed up. Slew the 'bot and try again
+						}
+						else{
+							done_int=1;
+						}
+					}
+					if(flagi==1){
+						minposn2=minposn1;
+						for(ii=maxposn1; ii<minposn2; ii++){
+							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+							if(max_integral<tempi){    //if new value exceeds old, max set to new max
+								maxposn2 = ii;         //gets value of global max
+								max_integral=tempi;
+							}
+							if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+								minposn1 = ii;
+								min_integral=tempi;
+							}
+						}
+						if(maxposn2<minposn1){
+							done_int=0;                 // still something is screwed up. Slew the 'bot and try again
+						}
+						else{
+							done_int=1;
+						}
+					}
+				}
+				// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
+				//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
+				// end of Dr. C.'s lines.
+
+
+			}
+			else{
+
+				SmartDashboard::PutNumber("Computer Vision Success", done_int);
+				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
+				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
+				SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
+				SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
+
+				//rectangle(green, cv::Point(0, stripe_start_row), cv::Point(640, stripe_start_row+stripe_width),cv::Scalar(255, 255, 255), 5);
+				cheese.PutFrame(green);
+				superdum=0;
+
+			}
 		}
 		//Video Practice
+
+		/* // Dr. C. lines MAGNETOMETER START
+		byte=1;
+		heading=0;
+		state = 0;
+		for(ii=0; ii<8; ii++){
+			SDC->Set(state);
+			SDC->Set(!state);
+			heading = heading+byte*(SDA->Get());
+			byte=byte*2;
+		}
+		SmartDashboard::PutNumber("Magnetometer", heading);
+		// Dr. C.  MAGNETOMETER STOP */
 
 		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
@@ -447,34 +476,66 @@ public:
 		//Drive
 
 		//Kicker
-		if(!kickerrunning){
-			kickerdown   =gamePad->GetRawButton(1);
-			kickerup   =gamePad->GetRawButton(2);
+		stop_arm1=limitArm->Get();
+		if(!kickerEreset){
+			kickerEreset=gamePad->GetRawButton(8);
 		}
 
-		if(kickerdown&&!kickerdummy){//Forward
-			kickerrunning=1;
-			kicker->Set(.5*((encKicker->GetRaw())-301.0)/301.0-0.5);//Move Forwards PID
-			if((encKicker->GetRaw())>=301){
-				kickerrunning=0;//No Longer Running
-				kickerdummy=1;
-				kicker->StopMotor();
+		if(kickerEreset){
+			if(!stop_arm1){
+				kicker->Set(.25);
+			}
+			else{
+				kicker->Set(0);
+				encKicker->Reset();
+				kickerrunning=0;
+				kickerdummy=0;
+				kickerEreset=0;
 			}
 		}
-		else if(kickerup&&kickerdummy){//Reverse
-			kickerrunning=1;
-			kicker->Set(.1*((encKicker->GetRaw())-61.0)/61.0+0.1);//Move Backwards PID and slows dows
-			if((encKicker->GetRaw())<=61){//Stop Early to Comp for Drift
-				kickerrunning=0;//No Longer Running
-				kickerdummy=0;
+		if(!kickerEreset){
+			if(!kickerrunning){
+				kickerdown   =gamePad->GetRawButton(1);
+				kickerup   =gamePad->GetRawButton(2);
+			}
+
+			if(kickerdown&&!kickerdummy){//Forward
+				kickerrunning=1;
+				kicker->Set(.5*((encKicker->GetRaw())-arm_set_down)/arm_max-0.5);//Move Forwards PID
+				if((encKicker->GetRaw())>=arm_set_down){
+					kickerrunning=0;//No Longer Running
+					kickerdummy=1;
+					kicker->StopMotor();
+				}
+			}
+			else if(kickerup&&kickerdummy){//Reverse
+				kickerrunning=1;
+				kicker->Set(.95*((encKicker->GetRaw())-arm_set_up)/arm_max+0.1);//Move Backwards PID and slows dows
+				if((encKicker->GetRaw())<=arm_set_up){//Stop Early to Comp for Drift
+					kickerrunning=0;//No Longer Running
+					kickerdummy=0;
+					kicker->Set(0);
+				}
+			}
+			else{//Stop if no button
 				kicker->Set(0);
 			}
 		}
-		else{//Stop if no button
-			kicker->Set(0);
-		}
 		SmartDashboard::PutNumber("enckicker",encKicker->GetRaw());
 		//Kicker
+
+		//Shooter
+		//shotspeed=gamePad->GetRawAxis(3);
+		//shooter->Set(shotspeed);
+	/*	if(encShooter>=357){
+		gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
+		gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
+		}
+		else{
+			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,0);
+			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,0);
+		}*/
+		//Shooter
 		//Climber
 		climbspeed=gamePad->GetRawAxis(0);
 		if(fabs(climbspeed)>=.5){
@@ -496,7 +557,11 @@ public:
 		SmartDashboard::PutNumber("light",fabs(light));
 		//Light
 
+
+	    heading = gyro->GetAngle();
 		//SmartDashboard
+	    SmartDashboard::PutNumber("Heading", heading);
+		SmartDashboard::PutNumber("Right Speed", shotspeed);
 		SmartDashboard::PutNumber("climbspeed",climbspeed);
 		SmartDashboard::PutNumber("encRight",Rdis);
 		SmartDashboard::PutNumber("encLeft", Ldis);
@@ -536,7 +601,7 @@ START_ROBOT_CLASS(Robot)
  *		4 Kicker
  *		5 Climber
  *		6 Franken Spark
- *		7
+ *		7 Shooter
  *		8
  *		9
  *
@@ -548,10 +613,11 @@ START_ROBOT_CLASS(Robot)
  *  	3	B "    (Yellow Wire)
  *  	4	A Kicker Encoder
  *  	5	B "
- *  	6       Limit Switch (kicker arm) for the encoder calibration (registration mark)
- *  	7
- *  	8
+ *  	6 	Limit Switch (kicker arm) for the encoder calibration (registration mark)
+ *  	7   Magnetometer Pulse Line (SDC)
+ *  	8   Magnetometer Data line  (SDA)
  *  	9
+ *
  *
  *  	Analog
  *  	0
@@ -561,9 +627,9 @@ START_ROBOT_CLASS(Robot)
  *
  *		Relay
  *		0
- *		1
+ *		1(
  *		2
- *		3
+ *		3(
  *
  *
  *
