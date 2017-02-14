@@ -56,7 +56,7 @@ public:
 	//VISION DECL START
 
 	//Auto Camera
-	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
+//	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
 
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
 	cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
@@ -67,12 +67,6 @@ public:
 	cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
 	cv::Mat green 		= cv::Mat(640,480,CV_8U);
 	//Matrixes
-
-	//Points and lines
-	//	std::vector<std::vector<cv::Point> > contours;
-	//cv::Point point1,point2;
-	//cv::Rect  rect1;
-	//Points and lines
 
 	//VISION DECL END
 
@@ -124,13 +118,14 @@ public:
 		cam2.SetWhiteBalanceManual(2800);
 		cam2.SetResolution(640,480);
 
-		cam.SetBrightness(150);
+	/*	cam.SetBrightness(150);
 		cam.SetExposureManual(-6);
 		cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
-
+	 	 */
 		chooser.AddDefault(NOTHING, NOTHING);
 		chooser.AddObject(DOA, DOA);
+		chooser.AddObject(FORWARD, FORWARD);
 		chooser.AddObject(Light, Light);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
 
@@ -159,7 +154,7 @@ public:
 
 		stop_arm1=limitArm->Get();
 
-			while(!stop_arm1){
+		while(!stop_arm1){
 			stop_arm1=limitArm->Get();
 			kicker->Set(.25);
 		}
@@ -234,6 +229,31 @@ public:
 		}
 		//Light
 
+		//FORWARD
+		else if(autoSelected == FORWARD){
+			if(!forwardReach&&Rdis<=6117.67&&Ldis<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
+				Rightgo=-.75;
+				Leftgo=-.75;
+			}
+			else if(!forwardReach){
+				forwardReach=1;
+				Rightgo=0;
+				Leftgo=0;
+			}
+
+			if(forwardReach){
+				if(Rdis<=2314.18){
+					Rightgo=.25;
+					Leftgo=0;
+				}
+				else{
+					Rightgo=0;
+					Leftgo=0;
+				}
+			}
+		}
+		//FORWARD
+
 		//DOA
 		else {//Dead On Arrival AKA Dead Reckoning
 
@@ -261,7 +281,6 @@ public:
 				else if(!backUp){
 					Rightgo=.75;
 					Leftgo=.75;
-					SmartDashboard::PutNumber("RIGHTTHTHHT", encRight->GetRaw());
 					if(encRight->GetRaw()<=-255){
 						Rightgo=0;
 						Leftgo=0;
@@ -283,7 +302,7 @@ public:
 
 			}
 
-	}
+		}
 		//DOA
 
 		robotDrive->TankDrive(Leftgo,Rightgo);
@@ -308,20 +327,23 @@ public:
 		superdum=gamePad->GetRawButton(7);
 		greenholder=0;
 		push=0;
+		maxposn1 = 0;
+		maxposn2 = 0;
+		minposn1 = 0;
+		minposn2 = 0;
 		while(superdum){
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
 				frankenspark->Set(-1);//turn on the lights
-				sleep(2.5);//1 sec delay for light to turn on
+				sleep(1.5);//1 sec delay for light to turn on
 				autosinker.GrabFrame(green);//grabs a green image
-				frankenspark->Set(0);//turns off light
 				greenholder=1;
 			}
 			//
 			else if(greenholder&&!push){
-				cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
-				cv::threshold(green,green,0,0,cv::THRESH_TOZERO);
-				//cv::subtract(green,pregreen,green);
+				cv::addWeighted(green,1,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
+				cv::cvtColor(green,green,cv::COLOR_RGB2GRAY);
+				cv::threshold(green,green,40,0,cv::THRESH_TOZERO);
 				//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
 				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
 				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
@@ -342,15 +364,17 @@ public:
 				stripe_start_row = 120;
 				stripe_width = 40;
 				max_integral = 0;
-				min_integral = 0;
-				cutoff_intensity = 13;
+				min_integral = 255*stripe_width;
+				cutoff_intensity = 3*stripe_width;
+				ii=2;
+				//First Stripe Finder
 				for(ii=2; ii<num_columns; ii++){
 					integral[ii] = 0;
 					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
-						integral[ii] = integral[ii]+green.at<uchar>(ii,jj)+abs(green.at<uchar>(ii,jj));
+						integral[ii] = integral[ii]+abs((int)(green.at<uchar>(ii,jj)));
 					}
 					if (integral[ii]<cutoff_intensity){
-						integral[ii] = 0;      //assume that we reach zero somewhere inbetween the stripes
+						integral[ii] = 0;      //assume that we reach zero somewhere in between the stripes
 					}
 					diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
 					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
@@ -363,8 +387,11 @@ public:
 						min_integral=tempi;
 					}
 				}
+				//First Stripe Finder
+
+				//Second Stripe Finder
 				max_integral=0; 				    //reuse these
-				min_integral=0;
+				min_integral=255*stripe_width;
 				done_int = 0; 						// flag to say when done with maxs/mins in order.
 				if (maxposn1>minposn1){            // here put the extrema in order.
 					maxposn2 = maxposn1;
@@ -434,21 +461,19 @@ public:
 				// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
 				//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
 				// end of Dr. C.'s lines.
-
-
 			}
 			else{
-
+				frankenspark->Set(0);//turns off light
 				SmartDashboard::PutNumber("Computer Vision Success", done_int);
 				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
 				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
 				SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
 				SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
-
-				//rectangle(green, cv::Point(0, stripe_start_row), cv::Point(640, stripe_start_row+stripe_width),cv::Scalar(255, 255, 255), 5);
+				rectangle(green, cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
+				rectangle(green, cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 5);//second stripe
 				cheese.PutFrame(green);
+				sleep(1.5);//1 sec delay for light to turn on
 				superdum=0;
-
 			}
 		}
 		//Video Practice
@@ -469,6 +494,7 @@ public:
 		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
+
 		Rdis=encRight->GetRaw();
 		Ldis=-(encLeft->GetRaw());
 
@@ -525,9 +551,14 @@ public:
 		//Kicker
 
 		//Shooter
-		//shotspeed=gamePad->GetRawAxis(3);
-		//shooter->Set(shotspeed);
-	/*	if(encShooter>=357){
+		shotspeed= (gamePad->GetRawAxis(3)) - (gamePad->GetRawAxis(4));//gets the two diffrent axis
+		if(abs(shotspeed)>=.5){
+			shooter->Set(shotspeed);
+		}
+		else{
+			shooter->Set(0);
+		}
+		/*	if(encShooter>=357){
 		gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
 		gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
 		}
@@ -536,6 +567,7 @@ public:
 			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,0);
 		}*/
 		//Shooter
+
 		//Climber
 		climbspeed=gamePad->GetRawAxis(0);
 		if(fabs(climbspeed)>=.5){
@@ -558,9 +590,9 @@ public:
 		//Light
 
 
-	    heading = gyro->GetAngle();
+		heading = gyro->GetAngle();
 		//SmartDashboard
-	    SmartDashboard::PutNumber("Heading", heading);
+		SmartDashboard::PutNumber("Heading", heading);
 		SmartDashboard::PutNumber("Right Speed", shotspeed);
 		SmartDashboard::PutNumber("climbspeed",climbspeed);
 		SmartDashboard::PutNumber("encRight",Rdis);
@@ -582,7 +614,8 @@ private://why is this down here?
 	frc::LiveWindow* lw = LiveWindow::GetInstance();
 	frc::SendableChooser<std::string> chooser;
 	const std::string NOTHING = "NOTHING!";
-	const std::string DOA = "FORWARD!";
+	const std::string FORWARD = "FORWARD!";
+	const std::string DOA = "FORWARD GEAR!";
 	const std::string Light = "LIGHT!";
 
 	std::string autoSelected;
