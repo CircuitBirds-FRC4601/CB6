@@ -18,14 +18,13 @@ public:
 
 	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diff_int[641], integral[641];
 	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int;
-	int arm_max=355, arm_set_up=73, arm_set_down=349, byte;
+	int arm_max=355, arm_set_up=73, arm_set_down=349, byte, bias, max_intensity_cutoff, max_cutoff_picture;
 	double Leftgo,Rightgo,Rdis,Ldis;
 	bool forwardReach,backUp;
 	double climbspeed,shotspeed,light,push, heading, headinglast;
 	bool   kickerdown,kickerup,kickerEreset;
 	bool   kickerdummy,kickerrunning;
 	bool   greenholder, superdum, stop_arm1, state;
-
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -56,16 +55,17 @@ public:
 	//VISION DECL START
 
 	//Auto Camera
-//	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
+	//	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
 
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
-	cs::CvSource cheese		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
+	cs::CvSource camserver		= CameraServer::GetInstance()->PutVideo("Woopdedupoe",640,480);//creates a video stream called rectangle
 	cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
 	//Auto Camera
 
 	//Matrixes
 	cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
 	cv::Mat green 		= cv::Mat(640,480,CV_8U);
+	std::vector<cv::Mat> planes;
 	//Matrixes
 
 	//VISION DECL END
@@ -80,7 +80,7 @@ public:
 
 		cs::CvSink sinker = CameraServer::GetInstance()->GetVideo(cam);//Grabs video to sink into the mat image cruncher
 
-	//	cs::CvSource cheese = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
+	//	cs::CvSource camserver = CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//Serves up the images gathered your on camera
 
 		cv::Mat cruncher(640,480,CV_8U);
 		std::vector<std::vector<cv::Point> > contours;
@@ -90,7 +90,7 @@ public:
 
 			if(sinker.GrabFrame(cruncher)==0){// if theres nothing there you got problems
 
-				//cheese.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
+				//camserver.NotifyError(sinker.GetError());//HEY LISTEN! you got some problems tell me about them
 				continue;//restarts the thread I think
 			}
 
@@ -101,7 +101,7 @@ public:
 		//	cv::findContours(cruncher,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);//draws external greens and stores them in contors
 			//cv::drawContours(cruncher,contours,-1,cv::Scalar(255,255,255),1,8);//draws dem contors
 
-			//cheese.PutFrame(cruncher);
+			//camserver.PutFrame(cruncher);
 			SmartDashboard::PutNumber("Point 25,25",cruncher.at<uchar>(25,25));
 
 			// SmartDashboard::PutNumber("maxposn#1",max1posn);
@@ -118,11 +118,11 @@ public:
 		cam2.SetWhiteBalanceManual(2800);
 		cam2.SetResolution(640,480);
 
-	/*	cam.SetBrightness(150);
+		/*	cam.SetBrightness(150);
 		cam.SetExposureManual(-6);
 		cam.SetWhiteBalanceManual(2800);
 		cam.SetResolution(640,480);
-	 	 */
+		 */
 		chooser.AddDefault(NOTHING, NOTHING);
 		chooser.AddObject(DOA, DOA);
 		chooser.AddObject(FORWARD, FORWARD);
@@ -223,7 +223,7 @@ public:
 				push=1;
 			}
 			else{
-				cheese.PutFrame(green);
+				camserver.PutFrame(green);
 			}
 
 		}
@@ -327,10 +327,6 @@ public:
 		superdum=gamePad->GetRawButton(7);
 		greenholder=0;
 		push=0;
-		maxposn1 = 0;
-		maxposn2 = 0;
-		minposn1 = 0;
-		minposn2 = 0;
 		while(superdum){
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
@@ -342,75 +338,92 @@ public:
 			//
 			else if(greenholder&&!push){
 				cv::addWeighted(green,1,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
-				cv::cvtColor(green,green,cv::COLOR_RGB2GRAY);
-				cv::threshold(green,green,40,0,cv::THRESH_TOZERO);
-				//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
-				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
-				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+				split(green,planes); //splits Matrix green into 3 BGR planes called planes
 
-				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
-				//we are probably going to need to filter these contours
+				max_cutoff_picture = 50;
+				cv::threshold(planes[1],planes[1],max_cutoff_picture, 0 ,cv::THRESH_TOZERO);//anything less then cutoff is set to zero everything else remains the same
 
-				//point1.x = rect1.x;//grabs x from rect1
-				//point1.y = rect1.y;//grabs y from rect1
-				//point2.x = rect1.x+rect1.width;//grabs the opposite corner
-				//	point2.y = rect1.y+rect1.height;
 
-				//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
-				push=1;
 				// Dr. C.'s codelines for integrated luminosity lines
-				num_columns = 640;
-				num_rows = 480;
-				stripe_start_row = 120;
-				stripe_width = 40;
-				max_integral = 0;
-				min_integral = 255*stripe_width;
-				cutoff_intensity = 3*stripe_width;
-				ii=2;
+				num_columns = 640;                    // the x-and y- number of pixels.
+				num_rows = 480;                       //
+				stripe_start_row = 120;               // start row for the strip to take
+				stripe_width = 40;                    // pixel width of the strip
+				max_integral = 0;                     // min and max values to start the
+				min_integral = 255*stripe_width;      //
+				cutoff_intensity = 3*stripe_width;    // saturation dark value on sum
+				max_intensity_cutoff = 200;           // saturation light value on pixels
+				bias = -5;                             // breaks the degeneracy between the maxs and mins
 				//First Stripe Finder
 				for(ii=2; ii<num_columns; ii++){
 					integral[ii] = 0;
 					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
-						integral[ii] = integral[ii]+abs((int)(green.at<uchar>(ii,jj)));
+						tempi = (int)((planes[1]).at<uchar>(jj,ii));
+						if (tempi>max_intensity_cutoff){
+							tempi = max_intensity_cutoff;
+						}
+						integral[ii] = integral[ii]+tempi;
 					}
 					if (integral[ii]<cutoff_intensity){
 						integral[ii] = 0;      //assume that we reach zero somewhere in between the stripes
 					}
 					diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
 					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-					if(max_integral<tempi){    //if new value exceeds old, max set to new max
+					if(max_integral+ii*-bias<tempi){    //if new value exceeds old, max set to new max
 						maxposn1 = ii;         //gets value of global max
 						max_integral=tempi;
 					}
-					if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+					if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
 						minposn1 = ii;
 						min_integral=tempi;
 					}
 				}
-				//First Stripe Finder
-
-				//Second Stripe Finder
+				bias = -bias;
+				max_integral = 0;                     // min and max values to start the
+				min_integral = 255*stripe_width;
+				for(ii=2; ii<num_columns; ii++){
+					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+					if(max_integral<tempi+ii*bias){    //if new value exceeds old, max set to new max
+						maxposn2 = ii;         //gets value of global max
+						max_integral=tempi+ii*bias;
+					}
+					if(min_integral>tempi+ii*-bias){    //if new value exceeds old min, set to new global min
+						minposn2 = ii;
+						min_integral=tempi+ii*-bias;
+					}
+				}
 				max_integral=0; 				    //reuse these
 				min_integral=255*stripe_width;
-				done_int = 0; 						// flag to say when done with maxs/mins in order.
-				if (maxposn1>minposn1){            // here put the extrema in order.
+				done_int = 0; 					   // flag to say when done with maxs/mins in order.
+				if (maxposn1>maxposn2){            // here put the extrema in order.
+					tempi = maxposn2;
 					maxposn2 = maxposn1;
-					for(ii=2; ii<minposn1; ii++){
+					maxposn1 = tempi;
+					done_int = 1;
+				}
+				if (minposn1>minposn2){
+					tempi = minposn2;
+					minposn2 = minposn1;
+					minposn1 = tempi;
+				}
+				/*		for(ii=2; ii<minposn1; ii++){
 						tempi = diff_int[ii];
-						if(max_integral<tempi){    //if new value exceeds old, max set to new max
+						if(max_integral-ii*bias<tempi){    //if new value exceeds old, max set to new max
 							maxposn1 = ii;         //gets value of max
 							max_integral=tempi;
 						}
 					}
 					for(ii=maxposn2; ii<num_rows; ii++){
 						tempi = diff_int[ii];
-						if(min_integral>tempi){    //if new value exceeds old min, set to new min
+						if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new min
 							minposn2 = ii;
 							min_integral=tempi;
 						}
 					}
 					done_int = 1;                  // signal all done.
 				}
+				max_integral=0; 				    //reuse these
+				min_integral=255*stripe_width;
 				if ((maxposn1<minposn1)&&(done_int==0)) { // in this configuration all could be fine IF there is no zero between the posn...
 					flagi = 0;
 					for(ii=maxposn1; ii<minposn1; ii++){
@@ -418,14 +431,14 @@ public:
 							flagi=1;               // SO they are not in the canonical order!
 						}
 					}
-					if(flagi==0){					//cannonical order, find others and quit
+					if(flagi==0){					//canonical order, find others and quit
 						for(ii=minposn1; ii<num_rows; ii++){
 							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-							if(max_integral<tempi){    //if new value exceeds old, max set to new max
+							if(max_integral-ii*bias<tempi){    //if new value exceeds old, max set to new max
 								maxposn2 = ii;         //gets value of global max
 								max_integral=tempi;
 							}
-							if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+							if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
 								minposn2 = ii;
 								min_integral=tempi;
 							}
@@ -441,11 +454,11 @@ public:
 						minposn2=minposn1;
 						for(ii=maxposn1; ii<minposn2; ii++){
 							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-							if(max_integral<tempi){    //if new value exceeds old, max set to new max
+							if(max_integral-ii*bias	<tempi){    //if new value exceeds old, max set to new max
 								maxposn2 = ii;         //gets value of global max
 								max_integral=tempi;
 							}
-							if(min_integral>tempi){    //if new value exceeds old min, set to new global min
+							if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
 								minposn1 = ii;
 								min_integral=tempi;
 							}
@@ -457,22 +470,22 @@ public:
 							done_int=1;
 						}
 					}
-				}
+				}*/
 				// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
 				//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
 				// end of Dr. C.'s lines.
+				push=1;//The frame is ready to be pushed
 			}
 			else{
 				frankenspark->Set(0);//turns off light
-				SmartDashboard::PutNumber("Computer Vision Success", done_int);
+				SmartDashboard::PutNumber("Flipped them", done_int);
 				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
 				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
 				SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
 				SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
-				rectangle(green, cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
-				rectangle(green, cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 5);//second stripe
-				cheese.PutFrame(green);
-				sleep(1.5);//1 sec delay for light to turn on
+				rectangle(planes[1], cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
+				rectangle(planes[1], cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 2);//second stripe
+				camserver.PutFrame(planes[1]);
 				superdum=0;
 			}
 		}
