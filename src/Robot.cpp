@@ -17,9 +17,9 @@ class Robot: public frc::IterativeRobot {
 public:
 
 	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diff_int[641], integral[641];
-	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int;
-	int arm_max=355, arm_set_up=73, arm_set_down=349, byte, bias, max_intensity_cutoff, max_cutoff_picture;
-	double Leftgo,Rightgo,Rdis,Ldis;
+	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int,camdist;
+	int arm_max=355, arm_set_up=73, arm_set_down=349, byte, max_intensity_cutoff, max_cutoff_picture;
+	double Leftgo,Rightgo,Rdis,Ldis, bias;
 	bool forwardReach,backUp;
 	double climbspeed,shotspeed,light,push, heading, headinglast;
 	bool   kickerdown,kickerup,kickerEreset;
@@ -44,10 +44,10 @@ public:
 	Encoder *encKicker	 =new Encoder(4,5);
 
 	DigitalInput *limitArm = new DigitalInput(6);//reads the arm limit switch
-	DigitalOutput *SDC = new DigitalOutput(7);//
-	DigitalInput *SDA = new DigitalInput(8);//
+	Counter *encShooter  =new Counter(7);
 
 	frc::ADXRS450_Gyro *gyro =new frc::ADXRS450_Gyro(frc::SPI::kOnboardCS0);
+	AnalogInput *lightsensor= new AnalogInput(0);// general purpose A/D read
 
 
 	RobotDrive *robotDrive  =new RobotDrive(fLeft,fRight,bLeft,bRight);
@@ -185,49 +185,137 @@ public:
 		Ldis=-(encLeft->GetRaw());
 		//Nothing
 		if (autoSelected == NOTHING) {//sit there yah lazy bum
-			Rightgo=0;
-			Leftgo=0;
-
-			//
 		}
-		//Nothing
 
-		//Light
-		else if(autoSelected == Light){
+		//Light : detect the strips for driving.
+		if(autoSelected== Light){
 			if(!greenholder){
-				autosinker.GrabFrame(pregreen);//grabs a pregreen image
-				frankenspark->Set(-1);//turn on the lights
-				sleep(2.5);//1 sec delay for light to turn on
-				autosinker.GrabFrame(green);//grabs a green image
-				frankenspark->Set(0);//turns off light
-				greenholder=1;
-			}
-			//
-			else if(greenholder&&!push){
-				cv::addWeighted(green,.9,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
-				//cv::subtract(green,pregreen,green);
-				//cv::inRange(green,cv::Scalar(255,0,255),cv::Scalar(255,255,255),green);//does some BGR thresholds on Mat green
-				//cv::medianBlur(green,green,7);//blurs to remove noise with "radius" of 23 pixels (Its kernel size AKA mat size)
-				//cv::findContours(green,contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);//look into this line, check arguments. Finds contours in mat green then puts them in contours
+							autosinker.GrabFrame(pregreen);//grabs a pregreen image
+							frankenspark->Set(-1);//turn on the lights
+							sleep(1.5);//1 sec delay for light to turn on
+							autosinker.GrabFrame(green);//grabs a green image
+							greenholder=1;
+						}
+						//
+						else if(greenholder&&!push){
+							cv::addWeighted(green,1,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
+							split(green,planes); //splits Matrix green into 3 BGR planes called planes
 
+							max_cutoff_picture = 50;
+							cv::threshold(planes[1],planes[1],max_cutoff_picture, 0 ,cv::THRESH_TOZERO);//anything less then cutoff is set to zero everything else remains the same
+							// Dr. C.'s codelines for integrated luminosity lines
+							num_columns = 640;                    // the x-and y- number of pixels.
+							num_rows = 480;                       //
+							stripe_start_row = 120;               // start row for the strip to take
+							stripe_width = 40;                    // pixel width of the strip
+							max_integral = -255*stripe_width;     // min and max values to start the
+							min_integral = 255*stripe_width;      //
+							cutoff_intensity = 3*stripe_width;    // saturation dark value on sum
+							max_intensity_cutoff = 38;           // saturation light value on pixels
+							bias = 0.35*255*stripe_width/num_columns; // bias to lift the degeneracy between the maxs
+							//First, integrate the intensity in the vertical columns
+							for(ii=2; ii<num_columns; ii++){
+								integral[ii] = 0;
+								for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
+									tempi = (int)((planes[1]).at<uchar>(jj,ii));
+									if (tempi>max_intensity_cutoff){
+										tempi = 255;
+									}
+									integral[ii] = integral[ii]+tempi;
+								}
+								if (integral[ii]<cutoff_intensity){
+									integral[ii] = 0;      //assume that we reach zero somewhere in between the stripes
+								}
+								diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
+							}
+							// 'bias' breaks the degeneracy between the maxs and mins
+							max_integral = -255*stripe_width;                     // min and max values to start the
+							min_integral = 255*stripe_width;
+							//Stripe 1
+							for(ii=2; ii<num_columns; ii++){
+								tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
+								if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+									maxposn1 = ii;         //gets value of global max
+									max_integral=tempi+(int)(ii*bias);
+								}
+								if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+									minposn1 = ii;
+									min_integral=tempi-(int)(ii*bias);
+								}
+							}
+							//Stripe 2
+							bias = -bias;
+							max_integral = -255*stripe_width;             // min and max values to start the
+							min_integral = 255*stripe_width;
+							for(ii=minposn1+2; ii<num_columns; ii++){
+								tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
+								if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+									maxposn2 = ii;                        //gets value of global max
+									max_integral=tempi+(int)(ii*bias);
+								}
+								if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+									minposn2 = ii;
+									min_integral=tempi-(int)(ii*bias);
+								}
+							}
+							if(maxposn2>maxposn1&&diff_int[maxposn2]>5){
+								done_int=1;//Its good!
+							}
+							else{
+								done_int=0;
+							}
+							//Stripe 2
+							max_integral = -255*stripe_width;             // min and max values to start the
+							min_integral = 255*stripe_width;
+							if(done_int==0){
+								for(ii=2; ii<maxposn1; ii++){
+									tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
+									if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+										maxposn2 = ii;                        //gets value of global max
+										max_integral=tempi+(int)(ii*bias);
+									}
+									if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+										minposn2 = ii;
+										min_integral=tempi-(int)(ii*bias);
+									}
+								}
+								tempi = maxposn2;
+								maxposn2 = maxposn1;
+								maxposn1 = tempi;
+								tempi = minposn2;
+								minposn2 = minposn1;
+								minposn1 = tempi;
+								done_int = 1;
+							}
+							// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
+							//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
+							// end of Dr. C.'s lines.
+							push=1;//The frame is ready to be pushed
+						}
+						else{
+							frankenspark->Set(0);//turns off light
+							SmartDashboard::PutNumber("Flipped them", done_int);
+							SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
+							SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
+							SmartDashboard::PutNumber("diff max", diff_int[maxposn1]);
+							SmartDashboard::PutNumber("diff inner", diff_int[minposn1]);
 
-				//rect1 =	cv::boundingRect(contours[0]);//puts the bounding rectangle of original contour in rect1
-				//we are probably going to need to filter these contours
+							SmartDashboard::PutNumber("intergral at max",integral[maxposn1]);
+							SmartDashboard::PutNumber("intergral at max-1",integral[maxposn1-1]);
 
-				//point1.x = rect1.x;//grabs x from rect1
-				//point1.y = rect1.y;//grabs y from rect1
-				//point2.x = rect1.x+rect1.width;//grabs the opposite corner
-				//	point2.y = rect1.y+rect1.height;
+							SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
+							SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
 
-				//	cv::rectangle(green,point1,point2,cv::Scalar(255,0,0),5);//draws rectangle with point1 and point2
-				push=1;
-			}
-			else{
-				camserver.PutFrame(green);
-			}
+							rectangle(planes[1], cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
+							rectangle(planes[1], cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 2);//second stripe
+							rectangle(planes[1], cv::Point((maxposn1+minposn1)/2, 128), cv::Point((maxposn2+minposn2)/2, 132),cv::Scalar(255, 0, 0), 6);//second stripe
+							camdist= (maxposn1+minposn1)/2 +(maxposn2+minposn2)/2;
+
+							camserver.PutFrame(planes[1]);
+						}
 
 		}
-		//Light
+
 
 		//FORWARD
 		else if(autoSelected == FORWARD){
@@ -342,25 +430,23 @@ public:
 
 				max_cutoff_picture = 50;
 				cv::threshold(planes[1],planes[1],max_cutoff_picture, 0 ,cv::THRESH_TOZERO);//anything less then cutoff is set to zero everything else remains the same
-
-
 				// Dr. C.'s codelines for integrated luminosity lines
 				num_columns = 640;                    // the x-and y- number of pixels.
 				num_rows = 480;                       //
 				stripe_start_row = 120;               // start row for the strip to take
 				stripe_width = 40;                    // pixel width of the strip
-				max_integral = 0;                     // min and max values to start the
+				max_integral = -255*stripe_width;     // min and max values to start the
 				min_integral = 255*stripe_width;      //
 				cutoff_intensity = 3*stripe_width;    // saturation dark value on sum
-				max_intensity_cutoff = 200;           // saturation light value on pixels
-				bias = -5;                             // breaks the degeneracy between the maxs and mins
-				//First Stripe Finder
+				max_intensity_cutoff = 38;           // saturation light value on pixels
+				bias = 0.35*255*stripe_width/num_columns; // bias to lift the degeneracy between the maxs
+				//First, integrate the intensity in the vertical columns
 				for(ii=2; ii<num_columns; ii++){
 					integral[ii] = 0;
 					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
 						tempi = (int)((planes[1]).at<uchar>(jj,ii));
 						if (tempi>max_intensity_cutoff){
-							tempi = max_intensity_cutoff;
+							tempi = 255;
 						}
 						integral[ii] = integral[ii]+tempi;
 					}
@@ -368,109 +454,66 @@ public:
 						integral[ii] = 0;      //assume that we reach zero somewhere in between the stripes
 					}
 					diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
-					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-					if(max_integral+ii*-bias<tempi){    //if new value exceeds old, max set to new max
-						maxposn1 = ii;         //gets value of global max
-						max_integral=tempi;
-					}
-					if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
-						minposn1 = ii;
-						min_integral=tempi;
-					}
 				}
-				bias = -bias;
-				max_integral = 0;                     // min and max values to start the
+				// 'bias' breaks the degeneracy between the maxs and mins
+				max_integral = -255*stripe_width;                     // min and max values to start the
 				min_integral = 255*stripe_width;
+				//Stripe 1
 				for(ii=2; ii<num_columns; ii++){
 					tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-					if(max_integral<tempi+ii*bias){    //if new value exceeds old, max set to new max
-						maxposn2 = ii;         //gets value of global max
-						max_integral=tempi+ii*bias;
+					if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+						maxposn1 = ii;         //gets value of global max
+						max_integral=tempi+(int)(ii*bias);
 					}
-					if(min_integral>tempi+ii*-bias){    //if new value exceeds old min, set to new global min
-						minposn2 = ii;
-						min_integral=tempi+ii*-bias;
+					if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+						minposn1 = ii;
+						min_integral=tempi-(int)(ii*bias);
 					}
 				}
-				max_integral=0; 				    //reuse these
-				min_integral=255*stripe_width;
-				done_int = 0; 					   // flag to say when done with maxs/mins in order.
-				if (maxposn1>maxposn2){            // here put the extrema in order.
+				//Stripe 2
+				bias = -bias;
+				max_integral = -255*stripe_width;             // min and max values to start the
+				min_integral = 255*stripe_width;
+				for(ii=minposn1+2; ii<num_columns; ii++){
+					tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
+					if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+						maxposn2 = ii;                        //gets value of global max
+						max_integral=tempi+(int)(ii*bias);
+					}
+					if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+						minposn2 = ii;
+						min_integral=tempi-(int)(ii*bias);
+					}
+				}
+				if(maxposn2>maxposn1&&diff_int[maxposn2]>5){
+					done_int=1;//Its good!
+				}
+				else{
+					done_int=0;
+				}
+				//Stripe 2
+				max_integral = -255*stripe_width;             // min and max values to start the
+				min_integral = 255*stripe_width;
+				if(done_int==0){
+					for(ii=2; ii<maxposn1; ii++){
+						tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
+						if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
+							maxposn2 = ii;                        //gets value of global max
+							max_integral=tempi+(int)(ii*bias);
+						}
+						if(min_integral>tempi-(int)(ii*bias)){    //if new value exceeds old min, set to new global min
+							minposn2 = ii;
+							min_integral=tempi-(int)(ii*bias);
+						}
+					}
 					tempi = maxposn2;
 					maxposn2 = maxposn1;
 					maxposn1 = tempi;
-					done_int = 1;
-				}
-				if (minposn1>minposn2){
 					tempi = minposn2;
 					minposn2 = minposn1;
 					minposn1 = tempi;
+					done_int = 1;
 				}
-				/*		for(ii=2; ii<minposn1; ii++){
-						tempi = diff_int[ii];
-						if(max_integral-ii*bias<tempi){    //if new value exceeds old, max set to new max
-							maxposn1 = ii;         //gets value of max
-							max_integral=tempi;
-						}
-					}
-					for(ii=maxposn2; ii<num_rows; ii++){
-						tempi = diff_int[ii];
-						if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new min
-							minposn2 = ii;
-							min_integral=tempi;
-						}
-					}
-					done_int = 1;                  // signal all done.
-				}
-				max_integral=0; 				    //reuse these
-				min_integral=255*stripe_width;
-				if ((maxposn1<minposn1)&&(done_int==0)) { // in this configuration all could be fine IF there is no zero between the posn...
-					flagi = 0;
-					for(ii=maxposn1; ii<minposn1; ii++){
-						if(integral[ii]==0){
-							flagi=1;               // SO they are not in the canonical order!
-						}
-					}
-					if(flagi==0){					//canonical order, find others and quit
-						for(ii=minposn1; ii<num_rows; ii++){
-							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-							if(max_integral-ii*bias<tempi){    //if new value exceeds old, max set to new max
-								maxposn2 = ii;         //gets value of global max
-								max_integral=tempi;
-							}
-							if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
-								minposn2 = ii;
-								min_integral=tempi;
-							}
-						}
-						if(maxposn2>minposn2){
-							done_int=0;                 // still something is screwed up. Slew the 'bot and try again
-						}
-						else{
-							done_int=1;
-						}
-					}
-					if(flagi==1){
-						minposn2=minposn1;
-						for(ii=maxposn1; ii<minposn2; ii++){
-							tempi = diff_int[ii];      //temporary integer; speeds up lookup in next lines.
-							if(max_integral-ii*bias	<tempi){    //if new value exceeds old, max set to new max
-								maxposn2 = ii;         //gets value of global max
-								max_integral=tempi;
-							}
-							if(min_integral+ii*bias>tempi){    //if new value exceeds old min, set to new global min
-								minposn1 = ii;
-								min_integral=tempi;
-							}
-						}
-						if(maxposn2<minposn1){
-							done_int=0;                 // still something is screwed up. Slew the 'bot and try again
-						}
-						else{
-							done_int=1;
-						}
-					}
-				}*/
 				// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
 				//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
 				// end of Dr. C.'s lines.
@@ -481,29 +524,23 @@ public:
 				SmartDashboard::PutNumber("Flipped them", done_int);
 				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
 				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
+				SmartDashboard::PutNumber("diff max", diff_int[maxposn1]);
+				SmartDashboard::PutNumber("diff inner", diff_int[minposn1]);
+
+				SmartDashboard::PutNumber("intergral at max",integral[maxposn1]);
+				SmartDashboard::PutNumber("intergral at max-1",integral[maxposn1-1]);
+
 				SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
 				SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
+
 				rectangle(planes[1], cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
 				rectangle(planes[1], cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 2);//second stripe
+				rectangle(planes[1], cv::Point((maxposn1+minposn1)/2, 128), cv::Point((maxposn2+minposn2)/2, 132),cv::Scalar(255, 0, 0), 6);//second stripe
 				camserver.PutFrame(planes[1]);
 				superdum=0;
 			}
 		}
 		//Video Practice
-
-		/* // Dr. C. lines MAGNETOMETER START
-		byte=1;
-		heading=0;
-		state = 0;
-		for(ii=0; ii<8; ii++){
-			SDC->Set(state);
-			SDC->Set(!state);
-			heading = heading+byte*(SDA->Get());
-			byte=byte*2;
-		}
-		SmartDashboard::PutNumber("Magnetometer", heading);
-		// Dr. C.  MAGNETOMETER STOP */
-
 		//Drive
 		Leftgo =.75*leftDrive->GetRawAxis(1);
 		Rightgo=.75*rightDrive->GetRawAxis(1);
@@ -564,21 +601,23 @@ public:
 		//Kicker
 
 		//Shooter
-		shotspeed= (gamePad->GetRawAxis(3)) - (gamePad->GetRawAxis(4));//gets the two diffrent axis
-		if(abs(shotspeed)>=.5){
+		shotspeed= (gamePad->GetRawAxis(3)) - (gamePad->GetRawAxis(2));//gets the two diffrent axis
+		if(fabs(shotspeed)>=.5){
 			shooter->Set(shotspeed);
 		}
 		else{
 			shooter->Set(0);
 		}
-		/*	if(encShooter>=357){
-		gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
-		gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
+		SmartDashboard::PutNumber("encoder shooter",encShooter->GetPeriod());
+		if(encShooter->GetPeriod()>=357&&encShooter->GetPeriod()<=1000){
+			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
+			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
 		}
 		else{
 			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,0);
 			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,0);
-		}*/
+		}
+		SmartDashboard::PutNumber("lightvalue", lightsensor->GetVoltage());
 		//Shooter
 
 		//Climber
@@ -599,12 +638,13 @@ public:
 		else{
 			frankenspark->Set(0);
 		}
-		SmartDashboard::PutNumber("light",fabs(light));
+		//SmartDashboard::PutNumber("light",fabs(light));
 		//Light
 
 
 		heading = gyro->GetAngle();
 		//SmartDashboard
+
 		SmartDashboard::PutNumber("Heading", heading);
 		SmartDashboard::PutNumber("Right Speed", shotspeed);
 		SmartDashboard::PutNumber("climbspeed",climbspeed);
@@ -660,8 +700,8 @@ START_ROBOT_CLASS(Robot)
  *  	4	A Kicker Encoder
  *  	5	B "
  *  	6 	Limit Switch (kicker arm) for the encoder calibration (registration mark)
- *  	7   Magnetometer Pulse Line (SDC)
- *  	8   Magnetometer Data line  (SDA)
+ *  	7
+ *  	8
  *  	9
  *
  *
