@@ -17,7 +17,7 @@ public:
 	int ii, jj, stripe_width, num_rows, num_columns, stripe_start_row, diff_int[641], integral[641], timesThrough;
 	int max_integral,maxposn1,maxposn2, min_integral,minposn1,minposn2, tempi, cutoff_intensity, flagi, done_int, targetCenter;
 	int arm_max=355, arm_set_up=70, arm_set_down=346, byte, max_intensity_cutoff, max_cutoff_picture, leg0, leg1, leg2, turnside;
-	double Leftgo,Rightgo,Rdis,Ldis, bias, tempf, centerField, Bobby, BobbyB, targetShotSpeed, kp, kint, speedNow, error, errorInt, percentI;
+	double Leftgo,Rightgo,Rdis,Ldis, bias, tempf, centerField, Bobby, BobbyB, targetShotSpeed, kp, kint, speedNow, error, errorInt, percentI,prevspeed=1,currentspeed=1;
 	bool   gearDrop,backUp, bumper, visionOn, validView;
 	double climbspeed,shotspeed,push, heading, headinglast, calibrator=883.95/12.0, anglestart, angleend, kdiff, P_differential;
 	bool   kickerdown,kickerup,kickerEreset;
@@ -422,9 +422,9 @@ public:
 		Rightgo     =0;
 		encRight->Reset();
 		encLeft->Reset();
-		targetShotSpeed = 8.5;                       // target for the shooter wheel speed
-		kp = .4/10000;                               // proportional gain for the PID loop
-		kint = 1.7/10000;						     // integral gain for PID loop
+		targetShotSpeed = 6.8;                       // target for the shooter wheel speed
+		kp = .4/10000;                               // proportional gain for the PID loop for shooter wheel
+		kint = 1.7/10000;						     // integral gain for PID loop         for shooter wheel
 		percentI = .84;  							 // integrating time-to-forget
 	}
 
@@ -620,8 +620,8 @@ public:
 		shotspeed= (gamePad->GetRawAxis(3)) - (gamePad->GetRawAxis(2));
 		if(shotspeed>=.5){
 			speedNow = encShooter->GetRate();
-			error = speedNow-10000*targetShotSpeed;
-			errorInt = (1.0-percentI)*errorInt+percentI*error;
+			error = speedNow-1000*targetShotSpeed;
+			errorInt = percentI*errorInt+(1.0-percentI)*error;
 			shooter->Set(-.58+kp*error+kint*errorInt);
 		}
 		else if(shotspeed<=-.5){
@@ -632,9 +632,12 @@ public:
 			error=0;
 			errorInt=0;
 		}
+		currentspeed=encShooter->GetRate()/1000;
+
 		SmartDashboard::PutNumber("shotspeed",shotspeed);
-		SmartDashboard::PutNumber("encoder shooter",encShooter->GetRate()/10000);
-		if(fabs(encShooter->GetRate()/10000-targetShotSpeed)<=.1){
+		SmartDashboard::PutNumber("encoder shooter",encShooter->GetRate()/1000);
+		SmartDashboard::PutNumber("error",error/1000);
+		if(fabs(currentspeed/targetShotSpeed)<=1.2&&fabs(currentspeed/targetShotSpeed)>=.8){
 			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
 			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
 		}
@@ -647,7 +650,7 @@ public:
 		// Bobby
 		Bobby  = gamePad ->GetRawButton(5);
 		BobbyB = gamePad -> GetRawButton(6);
-		if((Bobby==1)&&(fabs(encShooter->GetRate()/10000-targetShotSpeed)<=.1)){
+		if((Bobby==1)&&(fabs((encShooter->GetRate())/1000-targetShotSpeed)<=.1)){
 			feeder->Set(1);
 		}
 		else if (BobbyB==1){
@@ -676,7 +679,7 @@ public:
 		SmartDashboard::PutNumber("encRight",Rdis);
 		SmartDashboard::PutNumber("encLeft", Ldis);
 		SmartDashboard::PutNumber("limitArm", stop_arm1);
-
+		SmartDashboard::PutNumber("Shooter Wheel Speed", speedNow);
 		SmartDashboard::PutNumber("Leftgo",Leftgo);
 		SmartDashboard::PutNumber("Rightgo",Rightgo);
 		//SmartDashboard
