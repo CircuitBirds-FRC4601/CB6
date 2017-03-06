@@ -48,7 +48,7 @@ public:
 	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
 	cs::CvSource camserver		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
-	cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam2);//attach the sinker to the camera
+	cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam);//attach the sinker to the camera
 	//Auto Camera
 	//Matrixes
 	cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
@@ -66,8 +66,8 @@ public:
 		cam2.SetResolution(640,480);
 
 		cam.SetBrightness(1200);
-		cam.SetExposureManual(42);
-		cam.SetResolution(320,240);
+		cam.SetExposureManual(25);
+		cam.SetResolution(640,480);
 
 		chooser.AddDefault(NOTHING, NOTHING);
 		chooser.AddObject(DOA, DOA);
@@ -439,18 +439,20 @@ public:
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
 				frankenspark->Set(-1);//turn on the lights
-				sleep(1.5);//1 sec delay for light to turn on
+				sleep(1.0);//1 sec delay for light to turn on
 				autosinker.GrabFrame(green);//grabs a green image
+				frankenspark->Set(0);//turn off the lights THERE TO BRIGHT!
 				greenholder=1;
 			}
 			//
-			else if(greenholder&&!push){
+			else if(greenholder){
 				cv::addWeighted(green,1,pregreen,-1,0,green);//meshes pregreen and green then outputs to green Needs to be values of 1
 				split(green,planes); //splits Matrix green into 3 BGR planes called planes
 
-				max_cutoff_picture = 1;
+				max_cutoff_picture = 50;
 				cv::threshold(planes[1],planes[1],max_cutoff_picture, 0 ,cv::THRESH_TOZERO);//anything less then cutoff is set to zero everything else remains the same
-				//
+
+				// Dr. C.'s codelines for integrated luminosity lines
 				num_columns = 640;                    // the x-and y- number of pixels.
 				num_rows = 480;                       //
 				stripe_start_row = 120;               // start row for the strip to take
@@ -459,22 +461,29 @@ public:
 				min_integral = 255*stripe_width;      //
 				cutoff_intensity = 3*stripe_width;    // saturation dark value on sum
 				max_intensity_cutoff = 38;           // saturation light value on pixels
-				bias = 0.35*255*stripe_width/num_columns; // bias to lift the degeneracy between the maxs
-				//First, integrate the intensity in the vertical columns
-				for(ii=2; ii<num_columns; ii++){
-					integral[ii] = 0;
-					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){
-						tempi = (int)((planes[1]).at<uchar>(jj,ii));
-						if (tempi>max_intensity_cutoff){
+				bias = 0.35*255*stripe_width/num_columns; // A bias to weight the max and min positions
+				targetCenter = 320;
+
+				//Intensity Catch
+				for(ii=2; ii<num_columns; ii++){//gets x values
+					integral[ii] = 0; //initilize as zero
+
+					for(jj=stripe_start_row; jj<stripe_start_row+stripe_width; jj++){//Gets y values
+						tempi = (int)((planes[1]).at<uchar>(jj,ii));//grabs intensity values
+						if (tempi>max_intensity_cutoff){//Regulate the pixel intensitys
 							tempi = 255;
 						}
-						integral[ii] = integral[ii]+tempi;
+						integral[ii] = integral[ii]+tempi;//adds all of the pixels in the columns
 					}
-					if (integral[ii]<cutoff_intensity){
-						integral[ii] = 0;      //assume that we reach zero somew	chooser.AddObject(Light, Light);here in between the stripes
+
+					if (integral[ii]<cutoff_intensity){//checks if in the blank spaces there is a little bit of noise
+						integral[ii] = 0;      //assume that we reach zero somewhere in between the stripes
 					}
+
 					diff_int[ii] = integral[ii]-integral[ii-1]; // find the boundaries
 				}
+				//Intensity Catch
+
 				// 'bias' breaks the degeneracy between the maxs and mins
 				max_integral = -255*stripe_width;                     // min and max values to start the
 				min_integral = 255*stripe_width;
@@ -491,9 +500,11 @@ public:
 						min_integral=tempi-(int)(ii*bias);
 					}
 				}
+				//Stripe 1
+
 				//Stripe 2
-				bias = -bias;
-				max_integral = -255*stripe_width;             // min and max values to start the
+				bias = -bias;//flip the bias to find the second positions
+				max_integral = -255*stripe_width;             //Reset the max and min
 				min_integral = 255*stripe_width;
 				for(ii=minposn1+2; ii<num_columns; ii++){
 					tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
@@ -506,17 +517,23 @@ public:
 						min_integral=tempi-(int)(ii*bias);
 					}
 				}
+				//Stripe 2
+
+				//Position Check
 				if(maxposn2>maxposn1&&diff_int[maxposn2]>5){
 					done_int=1;//Its good!
 				}
 				else{
-					done_int=0;
+					done_int=0;//Not so good
 				}
-				//Stripe 2
-				max_integral = -255*stripe_width;             // min and max values to start the
-				min_integral = 255*stripe_width;
-				if(done_int==0){
-					for(ii=2; ii<maxposn1; ii++){
+				//Position Check
+
+				//Recount
+				if(done_int==0){//If the check fails try recounting 2
+					max_integral = -255*stripe_width;             // Reset values
+					min_integral = 255*stripe_width;
+
+					for(ii=2; ii<maxposn1; ii++){// Recounts for second stripe up to maxposn1
 						tempi = diff_int[ii];                     //temporary integer; speeds up lookup in next lines.
 						if(max_integral<tempi+(int)(ii*bias)){    //if new value exceeds old, max set to new max
 							maxposn2 = ii;                        //gets value of global max
@@ -527,21 +544,42 @@ public:
 							min_integral=tempi-(int)(ii*bias);
 						}
 					}
-					tempi = maxposn2;
+
+					tempi = maxposn2;		//These lines flip the max and min positions
 					maxposn2 = maxposn1;
 					maxposn1 = tempi;
 					tempi = minposn2;
 					minposn2 = minposn1;
 					minposn1 = tempi;
-					done_int = 1;
+					done_int = 1;//Its good now
 				}
+				//Recount
+
 				// at this point should be all done. Can check done_int=1 and if good you should have the ordered set
 				//    (maxposn1, minposn1, maxposn2, minposn2) of the pixel numbers of the stripe edges!!
-				// end of Dr. C.'s lines.
-				push=1;//The frame is ready to be pushed
-			}
-			else{
-				frankenspark->Set(0);//turns off light
+
+				// Validate Data
+				validView=0;
+				tempf=abs((maxposn1-minposn1)/(maxposn2-minposn2));
+				if(done_int==1) {
+					if((maxposn2>num_columns-4)&&(minposn1<4)){     // check that the bands are inside the FOV...and not grabbing an edge
+						validView=0;
+					}
+					else if((tempf<.8)||(tempf>1.0/0.8)){                 // check that the bands you find are roughly the same size in pixels
+						validView=0;
+					}
+					else if (abs(minposn1-maxposn2)<4){					 // check not concatenated boxes
+						validView=0;
+					}
+					else if((abs(minposn1-minposn2)<4)||(abs(maxposn1-maxposn2)<4)){ // check not interpenetrating boxes.
+						validView=0;
+					}
+					else{
+						validView=1;//If all the tests fail it must be good image read
+					}
+				}
+				centerField =(maxposn1+minposn1+maxposn2+minposn2)/4.0;
+				greenholder=0;
 				SmartDashboard::PutNumber("Flipped them", done_int);
 				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
 				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
@@ -558,8 +596,15 @@ public:
 				superdum=0;
 			}
 		}
-		//Video Practice
 
+		//Video Practice
+		if(gamePad->GetRawButton(3)){
+
+			frankenspark->Set(-1);
+		}
+		else{
+			frankenspark->Set(0);
+		}
 		//Drive
 		Leftgo =-.75*leftDrive->GetRawAxis(1);
 		Rightgo=-.75*rightDrive->GetRawAxis(1);
