@@ -22,11 +22,13 @@ public:
 	double climbspeed,shotspeed,push, heading, headinglast, calibrator=883.95/12.0, anglestart, angleend, kdiff, P_differential;
 	bool   kickerdown,kickerup,kickerEreset;
 	bool   kickerdummy,kickerrunning;
-	bool   greenholder, superdum, stop_arm1, state;
+	bool   greenholder, superdum, stop_arm1, state,frank;
+	double extra, scale;
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
 	Joystick *gamePad    =new Joystick(2,6,9);
+
 	Spark *fLeft         =new Spark(0);
 	Spark *fRight        =new Spark(1);
 	Spark *bLeft         =new Spark(2);
@@ -42,6 +44,8 @@ public:
 	Encoder *encShooter  =new Encoder(6,7);
 	DigitalInput *limitArm   = new DigitalInput(8);    //reads the arm limit switch
 	DigitalInput *bumperHit  = new DigitalInput(9);   //the bumper is hit.
+	DigitalOutput	 *Light		 = new DigitalOutput(10);
+
 	frc::ADXRS450_Gyro *gyro = new frc::ADXRS450_Gyro(frc::SPI::kOnboardCS0);
 	RobotDrive *robotDrive   = new RobotDrive(fLeft,bLeft,fRight,bRight);
 	//Auto Camera
@@ -160,9 +164,9 @@ public:
 		}
 		//GLOBAL GEAR
 
-		//computer vision detect the strips for driving/only for forwardlight, lefthook, righthook
+
 		//GLOBAL VISION
-		if(visionOn){
+		if(visionOn){		//computer vision detect the strips for driving/only for forwardlight, lefthook, righthook
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
 				frankenspark->Set(-1);//turn on the lights
@@ -312,12 +316,30 @@ public:
 		}
 		//GLOBAL VISION
 
-		//DOA
-		else if(autoSelected == DOA){//Dead On Arrival AKA Dead Reckoning
+		/*
+		 *
+		 *
+		 *
+		 * Leaving Global Auto
+		 *
+		 *
+		 *
+		 */
 
-			if(!gearDrop&&Rdis<=6117.67&&Ldis<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
-				Rightgo=.75;
-				Leftgo=.75;
+		//DOA
+		if(autoSelected == DOA){//Dead On Arrival AKA Dead Reckoning
+
+			if(!gearDrop&&Rdis<=6117.67&&Ldis<=6117.67&&bumperHit->Get()==0){//114.3" from wall to wall of airship ~6.92 feet
+                scale = .3/20;
+				extra = (Ldis-Rdis)*scale;
+				Rightgo=fabs(.75+extra);
+				Leftgo=fabs(.75-extra);
+				if(Rightgo>1){
+					Rightgo=1;
+				}
+				if(Leftgo>1){
+					Leftgo=1;
+				}
 			}
 			else if(!gearDrop){
 				gearDrop=1;
@@ -327,21 +349,20 @@ public:
 		}
 		//DOA end
 
-		// LEFTHOOK start
-		// go forward 88.09 inches, turn 60 degrees and then go 29.22 inches.
-		else if (autoSelected == lefthook) {
-			turnside = -1;
-		}
-		// LEFTHOOK end
-
-		// RIGHTHOOK start
-		else if (autoSelected == righthook) {
-			turnside = 1;
-		}
-		// RIGHTHOOK end
-
-		// hooks in auton all do this...
+		// HOOK
 		else if ((autoSelected == righthook)||(autoSelected == lefthook)) {
+
+			// HOOK SELECTION
+			// go forward 88.09 inches, turn 60 degrees and then go 29.22 inches.
+			if (autoSelected == lefthook) {
+				turnside = -1;
+			}
+
+			else if (autoSelected == righthook) { // Fixed so the Auto does not fall through
+				turnside = 1;
+			}
+			//HOOK SELECTION
+
 			if(!gearDrop&&Rdis<=88.09*calibrator&&Ldis<=88.09*calibrator&&leg0==0){
 				Rightgo=-.75;
 				Leftgo=-.75;
@@ -389,7 +410,6 @@ public:
 					leg2=1;
 					encRight->Reset();
 					encLeft->Reset();
-					gearDrop=0;
 					visionOn=1;
 				}
 				if(bumper||(timesThrough==4)){
@@ -405,17 +425,21 @@ public:
 				}
 			}
 		}
+		//HOOK end
+
 		//NOTHING
 		else if (autoSelected == NOTHING) {//sit there yah lazy bum
 			Leftgo=0;
 			Rightgo=0;
 		}
 		//NOTHING end
+
 		robotDrive->TankDrive(Leftgo,Rightgo);
 		SmartDashboard::PutNumber("encRight",Rdis);
 		SmartDashboard::PutNumber("encLeft", Ldis);
 	}
 	//AUTO END
+
 
 	void TeleopInt() {
 		Leftgo      =0;
@@ -717,7 +741,13 @@ public:
 		//Climber
 
 		heading = gyro->GetAngle();
-
+		frank=gamePad->GetRawButton(6);
+		if(frank){
+			Light->Set(1);
+		}
+		else{
+			Light->Set(0);
+		}
 		//SmartDashboard
 		SmartDashboard::PutNumber("Heading", heading);
 		SmartDashboard::PutBoolean("Bumber switch",bumperHit->Get());
@@ -793,7 +823,7 @@ START_ROBOT_CLASS(Robot)
  *
  *
  *
- *o
+ *
  *
  *
  */
