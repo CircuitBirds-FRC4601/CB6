@@ -24,6 +24,7 @@ public:
 	bool   kickerdummy,kickerrunning;
 	bool   greenholder, superdum, stop_arm1, state,frank;
 	double extra, scale;
+	double count=0;
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -83,7 +84,7 @@ public:
 		encRight->Reset();
 		encLeft->Reset();
 		gyro->Calibrate();
-
+		Light->EnablePWM(0);
 	}
 
 	/*
@@ -446,9 +447,9 @@ public:
 		Rightgo     =0;
 		encRight->Reset();
 		encLeft->Reset();
-		targetShotSpeed = 6.8;                       // target for the shooter wheel speed
-		kp = .4/10000;                               // proportional gain for the PID loop for shooter wheel
-		kint = 1.7/10000;						     // integral gain for PID loop         for shooter wheel
+		targetShotSpeed = 3;   //actual 6.8           // target for the shooter wheel speed
+		kp = 0;//.4/10000;                               // proportional gain for the PID loop for shooter wheel
+		kint = 0;//1.7/10000;						     // integral gain for PID loop         for shooter wheel
 		percentI = .84;  							 // integrating time-to-forget
 	}
 
@@ -687,11 +688,11 @@ public:
 
 		//Shooter
 		shotspeed= (gamePad->GetRawAxis(3)) - (gamePad->GetRawAxis(2));
+		speedNow = -(encShooter->GetRate());
 		if(shotspeed>=.5){
-			speedNow = encShooter->GetRate();
 			error = speedNow-1000*targetShotSpeed;
 			errorInt = percentI*errorInt+(1.0-percentI)*error;
-			shooter->Set(-.58+kp*error+kint*errorInt);
+			shooter->Set(-.58+(kp*error)+(kint*errorInt));
 		}
 		else if(shotspeed<=-.5){
 			shooter->Set(.5);
@@ -701,25 +702,26 @@ public:
 			error=0;
 			errorInt=0;
 		}
-		currentspeed=encShooter->GetRate()/1000;
-
 		SmartDashboard::PutNumber("shotspeed",shotspeed);
-		SmartDashboard::PutNumber("encoder shooter",encShooter->GetRate()/1000);
-		SmartDashboard::PutNumber("error",error/1000);
-		if(fabs(currentspeed/targetShotSpeed)<=1.2&&fabs(currentspeed/targetShotSpeed)>=.8){
+		SmartDashboard::PutNumber("encoder integrated error", errorInt);
+		SmartDashboard::PutNumber("error",error);
+		SmartDashboard::PutNumber("Speed Now!!!",speedNow);
+		SmartDashboard::PutNumber("Polyphemous is a wimp!",encShooter->GetRaw());
+		/*
+		if(fabs(speedNow/targetShotSpeed)<=1.2&&fabs(speedNow/targetShotSpeed)>=.8){
 			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,1);
 			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,1);
 		}
 		else{
 			gamePad->SetRumble(Joystick::RumbleType::kRightRumble,0);
 			gamePad->SetRumble(Joystick::RumbleType::kLeftRumble,0);
-		}
+		}*/
 		//Shooter
 
 		// Bobby
-		Bobby  = gamePad ->GetRawButton(5);
+		Bobby  = gamePad -> GetRawButton(5);
 		BobbyB = gamePad -> GetRawButton(6);
-		if((Bobby==1)&&(fabs((encShooter->GetRate())/1000-targetShotSpeed)<=.1)){
+		if((Bobby==1)&&(fabs(speedNow/1000/targetShotSpeed-1)<=.1)){
 			feeder->Set(1);
 		}
 		else if (BobbyB==1){
@@ -741,12 +743,18 @@ public:
 		//Climber
 
 		heading = gyro->GetAngle();
-		frank=gamePad->GetRawButton(6);
+		
+		frank=gamePad->GetRawButton(8);
+		
 		if(frank){
-			Light->Set(1);
+			Light->UpdateDutyCycle(count/10);
 		}
 		else{
-			Light->Set(0);
+			Light->UpdateDutyCycle(0);
+		}
+		count++;
+		if(count>=10){
+			count=0;
 		}
 		//SmartDashboard
 		SmartDashboard::PutNumber("Heading", heading);
@@ -754,7 +762,6 @@ public:
 		SmartDashboard::PutNumber("encRight",Rdis);
 		SmartDashboard::PutNumber("encLeft", Ldis);
 		SmartDashboard::PutNumber("limitArm", stop_arm1);
-		SmartDashboard::PutNumber("Shooter Wheel Speed", speedNow);
 		SmartDashboard::PutNumber("Leftgo",Leftgo);
 		SmartDashboard::PutNumber("Rightgo",Rightgo);
 		//SmartDashboard
