@@ -121,7 +121,7 @@ public:
 		visionOn=0;
 		Rightgo=0;
 		Leftgo=0;
-
+		scale = .3/20;
 	}
 
 	//AUTO START
@@ -129,7 +129,7 @@ public:
 	void AutonomousPeriodic() {
 		Rdis=encRight->GetRaw();
 		Ldis=encLeft->GetRaw();
-
+		extra = (Ldis-Rdis)*scale;
 		//GLOBAL GEAR
 		if(gearDrop){//call gearDrop to drop gear
 
@@ -331,8 +331,6 @@ public:
 		if(autoSelected == DOA){//Dead On Arrival AKA Dead Reckoning
 
 			if(!gearDrop&&Rdis<=6117.67&&Ldis<=6117.67&&bumperHit->Get()==0){//114.3" from wall to wall of airship ~6.92 feet
-                scale = .3/20;
-				extra = (Ldis-Rdis)*scale;
 				Rightgo=fabs(.75+extra);
 				Leftgo=fabs(.75-extra);
 				if(Rightgo>1){
@@ -363,22 +361,22 @@ public:
 				turnside = 1;
 			}
 			//HOOK SELECTION
-
+            // LEG 0
 			if(!gearDrop&&Rdis<=88.09*calibrator&&Ldis<=88.09*calibrator&&leg0==0){
-				Rightgo=-.75;
-				Leftgo=-.75;
+				Rightgo=fabs(.75+extra);
+				Leftgo =fabs(.75-extra);
 			}
 			else{
-				leg0=1;                               //signal you are done with first straightaway.
+				leg0=1;                               // END OF LEG 0: signal you are done with first straightaway.
 				encRight->Reset();
 				encLeft->Reset();
 				anglestart = gyro->GetAngle();
 			}
-			if(!gearDrop&&leg0==1&&leg1==0){      // then turn
+			if(!gearDrop&&leg0==1&&leg1==0){      // LEG 1: then turn, 13.22 inches (60 degrees) to normal to face of airship wall
 				angleend = gyro->GetAngle();
-				if ((abs(angleend-anglestart-turnside*60)< 8)&&(abs(Rdis)<60*calibrator)){  // this is the angular tolerance to get you within 8 degrees of normal to the gear pin.
-					Rightgo=+.25;
-					Leftgo=-.25;
+				if ((abs(angleend-anglestart-turnside*60)< 8)&&(abs(Rdis)<60*calibrator)&&){  // this is the angular tolerance to get you within 8 degrees of normal to the gear pin.
+					Rightgo=+.25*turnside;
+					Leftgo=-.25*turnside;
 				}
 				else {
 					Rightgo= 0.0;
@@ -389,7 +387,7 @@ public:
 					timesThrough=1;
 				}
 			}
-			if(!gearDrop&&leg0==1&&leg1==1&&leg2==0){      //then crawl onto the peg, with the robot vision.
+			if(!gearDrop&&leg0==1&&leg1==1&&leg2==0){      // LEG 2: then crawl onto the peg, with the robot vision.
 				visionOn=1;                                // turn on vision capture.
 				bumper=bumperHit->Get();
 				if(!bumper&&validView){					   //here decide the angle to drive
@@ -402,8 +400,8 @@ public:
 					P_differential = 0;
 				}
 				if(Rdis<=29.22/3.0*timesThrough*calibrator&&Ldis<=29.22/3.0*timesThrough*calibrator&&!bumper){
-					Rightgo =-.75-P_differential;
-					Leftgo =-.75+P_differential;
+					Rightgo=fabs(.75+extra);
+					Leftgo =fabs(.75-extra);
 				}
 				else{
 					Rightgo= 0.0;
@@ -452,9 +450,7 @@ public:
 		kint = 0;//1.7/10000;						     // integral gain for PID loop         for shooter wheel
 		percentI = .84;  							 // integrating time-to-forget
 	}
-
 	//TELE START
-
 	void TeleopPeriodic() {
 		//Video Practice
 		superdum=gamePad->GetRawButton(7);
@@ -605,7 +601,6 @@ public:
 				}
 				centerField =(maxposn1+minposn1+maxposn2+minposn2)/4.0;
 				greenholder=0;
-				SmartDashboard::PutNumber("Flipped them", done_int);
 				SmartDashboard::PutNumber("camera first stripe outer edge", maxposn1);
 				SmartDashboard::PutNumber("Camera first stripe inner edge", minposn1);
 				SmartDashboard::PutNumber("diff max", diff_int[maxposn1]);
@@ -614,6 +609,7 @@ public:
 				SmartDashboard::PutNumber("intergral at max-1",integral[maxposn1-1]);
 				SmartDashboard::PutNumber("camera second stripe inner edge", maxposn2);
 				SmartDashboard::PutNumber("Camera second stripe outer edge", minposn2);
+				SmartDashboard::PutBoolean("Valid", validView);
 				rectangle(planes[1], cv::Point(maxposn1, 120), cv::Point(minposn1, 160),cv::Scalar(255, 255, 255), 5);//first stripe
 				rectangle(planes[1], cv::Point(maxposn2, 120), cv::Point(minposn2, 160),cv::Scalar(255, 0, 0), 2);//second stripe
 				rectangle(planes[1], cv::Point((maxposn1+minposn1)/2, 128), cv::Point((maxposn2+minposn2)/2, 132),cv::Scalar(255, 0, 0), 6);//second stripe
@@ -744,15 +740,18 @@ public:
 
 		heading = gyro->GetAngle();
 		
-		frank=gamePad->GetRawButton(8);
-		
-		if(frank){
+		if(gamePad->GetRawButton(8)==1){
 			Light->UpdateDutyCycle(count/10);
 		}
 		else{
 			Light->UpdateDutyCycle(0);
 		}
+		if(!frank){
 		count++;
+		}
+		else{
+			count--;
+		}
 		if(count>=10){
 			count=0;
 		}
