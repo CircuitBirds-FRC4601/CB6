@@ -21,23 +21,23 @@ public:
 	double extra, scale, turnback;																										//
 	bool   greenholder, validView;																										//
 
-	bool   leg0, leg1, leg2;																											// Auto
+	bool   leg0, leg1, leg2,wallhit=0;																											// Auto
 	bool   gearDrop, backUp, bumper, visionOn;																							//
 	double anglestart, angleend, P_differential;																						//
-	int    turnside;																													//
+	int    turnside, posn_previous;																													//
 
 	int    arm_max=355, arm_set_up=70, arm_set_down=346;																				// Gear
 	bool   kickerdown, kickerup, kickerEreset;																							//
 	bool   kickerdummy, kickerrunning, stop_arm1;																						//
 
-	double targetShotSpeed, kp, kint, speedNow, error, errorInt, percentI,shotspeed;													//Shooter
+	double targetShotSpeed, kp, kint, speedNow, error, errorInt, percentI,shotspeed, kp_drivestraight, encerror;						//Shooter and PIDs
 	bool   Bobby, BobbyB;																												//
 
 	double climbspeed, heading, calibrator=883.95/12.0/*ticks per foot*/;																// Movement
 	double Leftgo, Rightgo, Rdis, Ldis;																									//
 
-	bool   superdum,lightdum=1, disable_DrC=1;																							// Misc.
-	double count=0;																														//
+	bool   superdum,lightdum=1, disable_DrC=0;																							// Misc.
+	int count=1;																														//
 
 	Joystick *rightDrive =new Joystick(0,2,9);
 	Joystick *leftDrive  =new Joystick(1,2,9);
@@ -91,6 +91,7 @@ public:
 		chooser.AddDefault(NOTHING, NOTHING);
 		chooser.AddObject(DOA, DOA);
 		chooser.AddObject(FORWARD, FORWARD);
+		//chooser.AddObject(FCOMP, FCOMP);
 		chooser.AddObject(lefthook, lefthook);
 		chooser.AddObject(righthook, righthook);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
@@ -122,7 +123,8 @@ public:
 		}
 		kicker->Set(0);
 		encKicker->Reset();
-
+		encRight->Reset();
+		encLeft->Reset();
 		greenholder=0;
 		gearDrop=0;
 		kickerdummy=0;
@@ -133,10 +135,11 @@ public:
 		visionOn=0;
 		Rightgo=0;
 		Leftgo=0;
-		scale = .3/20;
+		scale = 1.0;
 		turnback = 1.0;
 		Rdis=0;
 		Ldis=0;
+		kp_drivestraight = .1/10000;
 	}
 
 	//AUTO START
@@ -146,12 +149,20 @@ public:
 		Ldis=encLeft->GetRaw();
 		extra = (Ldis-Rdis)*scale;
 		bumper=bumperHit->Get();
+		count++;
+		if(count%200==0&&Leftgo>0&&Rightgo>0&&fabs(posn_previous-(Ldis+Rdis))<=200){
+			wallhit=1;
+		}
+		else{
+			wallhit=0;
+			posn_previous=(Ldis+Rdis);
+		}
 		//GLOBAL GEAR
 		if(gearDrop==1){//call gearDrop to drop gear
-
 			if((!backUp)&&(!kickerdummy)){//Kick gear
-				kicker->Set(.5*((encKicker->GetRaw())-arm_set_down)/arm_max-0.5);//Move Forwards PID
+				kicker->Set(.5*((encKicker->GetRaw())-arm_set_down)/arm_max-0.7);//Move Forwards PID
 				if((encKicker->GetRaw())>=arm_set_down){
+					kickerrunning=0; // no longer running
 					kickerdummy=1;
 					kicker->Set(0);
 					encRight->Reset();
@@ -159,6 +170,7 @@ public:
 				}
 			}
 			else if(!backUp){
+				sleep(1.0);
 				Rightgo=-.75;
 				Leftgo=-.75;
 				if(abs(encRight->GetRaw())>=550){//Slide back a little
@@ -167,13 +179,13 @@ public:
 					backUp=1;
 				}
 			}
-			else if(kickerdummy){//Pull arm back up
+/*			else if(kickerdummy){//Pull arm back up
 				kicker->Set(.95*((encKicker->GetRaw())-arm_set_up)/arm_max+0.1);//Move Backwards PID and slows down
 				if((encKicker->GetRaw())<=arm_set_up){
 					kickerdummy=0;
 					kicker->Set(0);
 				}
-			}
+			}*/
 			else{//Gear loop done
 				Rightgo=0;
 				Leftgo=0;
@@ -346,30 +358,78 @@ public:
 		//DOA
 		if(autoSelected == DOA){//Dead On Arrival AKA Dead Reckoning
 
-			if(!gearDrop&&fabs(Rdis)<=6117.67&&fabs(Ldis)<=6117.67){//114.3" from wall to wall of airship ~6.92 feet
+			if(!gearDrop&&fabs(Rdis)<=5117.67&&fabs(Ldis)<=5117.67&&!wallhit){//114.3" from wall to wall of airship ~6.92 feet
 				Rightgo=.75;
-				Leftgo=.85;
+				Leftgo=.80;
 			}
 			else if(!gearDrop){
-				gearDrop=1;
 				Rightgo=0;
 				Leftgo=0;
+				gearDrop=1;
 			}
 		}
 		//DOA end
 
 		//FORWARD
-		else if(autoSelected == FORWARD){
+		/*else if(autoSelected == FORWARD){
 
 			if(fabs(Rdis)<=7117.67&&fabs(Ldis)<=7117.67){//114.3" from wall to wall of airship ~6.92 feet
 				Rightgo=.75;
-				Leftgo=.85;
+				Leftgo=.80;
 
 			}
 			else{
 				Rightgo=0;
 				Leftgo=0;
 			}
+		}*/
+		// simplest DrC hook!
+		else if (((autoSelected==righthook)||(autoSelected==lefthook))&&disable_DrC==0) {
+							// HOOK SELECTION
+							// go forward 88.09 inches, turn 60 degrees and then go 29.22 inches.
+							if (autoSelected == lefthook) {
+								turnside = -1;
+							}
+							else if (autoSelected == righthook) { // Fixed so the Auto does not fall through
+								turnside = 1;
+							}
+				// LEG 0 : got forward
+				if(!gearDrop&&fabs(Rdis)<=88.09*calibrator&&fabs(Ldis)<=88.09*calibrator&&leg0==0){
+					Rightgo=fabs(.75);
+					Leftgo =fabs(.75);
+				}
+				if(!gearDrop&&fabs(Rdis)>=88.09*calibrator&&fabs(Ldis)>=88.09*calibrator&&leg0==0){
+					Rightgo= 0.0;
+					Leftgo = 0.0;
+					leg0=1;
+					encRight->Reset();
+					encLeft->Reset();
+				}
+				// LEG 1 : rotate
+				if(!gearDrop&&(fabs(extra)<=13.22/2.0*calibrator)&&leg0==1&&leg1==0){      // LEG 1: then turn, 13.22 inches (60 degrees) to normal to face of airship wall
+					Rightgo=+.25*turnside;
+					Leftgo=-.25*turnside;
+					}
+				if(!gearDrop&&(fabs(extra)>=13.22/2.0*calibrator)&&leg0==1&&leg1==0){
+					Rightgo= 0.0;
+					Leftgo = 0.0;
+					leg1=1;
+					encRight->Reset();
+					encLeft->Reset();
+				}
+				//LEG 3 : drive forward and drop gear
+				if(!gearDrop&&fabs(Rdis)<=29.22*calibrator&&fabs(Ldis)<=29.22*calibrator&&leg0==1&&leg1==1&&leg2==0){
+						Rightgo=fabs(.75);
+						Leftgo =fabs(.75);
+									}
+				if(!gearDrop&&fabs(Rdis)>=29.22*calibrator&&fabs(Ldis)<=29.22*calibrator&&leg0==1&&leg1==1&&leg2==0){
+						Rightgo= 0.0;
+						Leftgo = 0.0;
+						leg2=1;
+						encRight->Reset();
+						encLeft->Reset();
+						gearDrop=1;
+				}
 		}
 		/*
 		if(!disable_DrC){//Dr. C Kill switch
@@ -457,6 +517,24 @@ public:
 			//HOOK end
 		}//Dr. C Kill switch
 		 */
+		else if(autoSelected == FORWARD){
+					encerror=(Ldis-Rdis);
+					if(fabs(Rdis)<=7117.67&&fabs(Ldis)<=7117.67){//114.3" from wall to wall of airship ~6.92 feet
+						Rightgo=.75+kp_drivestraight*encerror;
+						Leftgo=.75-kp_drivestraight*encerror;
+						if(Rightgo>1){
+							Rightgo=1;
+						}
+						if(Leftgo>1){
+							Leftgo=1;
+						}
+
+					}
+					else{
+						Rightgo=0;
+						Leftgo=0;
+					}
+				}
 		//NOTHING
 		else if (autoSelected == NOTHING) {//sit there yah lazy bum
 			Leftgo=0;
@@ -812,7 +890,7 @@ START_ROBOT_CLASS(Robot)
  *		3	"	Right
  *		4 Kicker
  *		5 Climber
- *		6 Franken Spark
+ *		6 Franken Spark: green light + Under-glow
  *		7 Shooter
  *		8 Feeder
  *		9
@@ -829,7 +907,7 @@ START_ROBOT_CLASS(Robot)
  *  	7   B  "		(Yellow Wire)
  *  	8   Limit Switch (kicker arm) for the encoder calibration (registration mark)
  *  	9   Bumper Contact switch
- *  	10	Under-glow (pins 11 and 12 in mxp port)
+ *  	10	Not currently used (pins 11 and 12 in mxp port)
  *
  *
  *  	Analog
