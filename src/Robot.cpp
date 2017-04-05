@@ -63,10 +63,7 @@ public:
 	frc::ADXRS450_Gyro *gyro = new frc::ADXRS450_Gyro(frc::SPI::kOnboardCS0);
 	RobotDrive *robotDrive   = new RobotDrive(fLeft,bLeft,fRight,bRight);
 	//Auto Camera
-	cs::UsbCamera cam		= CameraServer::GetInstance()->StartAutomaticCapture(0);//sets up camera for capturing
 	cs::UsbCamera cam2		= CameraServer::GetInstance()->StartAutomaticCapture(1);//sets up camera 2 for capturing
-	cs::CvSource camserver		= CameraServer::GetInstance()->PutVideo("Rectangle",640,480);//creates a video stream called rectangle
-	cs::CvSink autosinker	= CameraServer::GetInstance()->GetVideo(cam);//attach the sinker to the camera
 	//Auto Camera
 	//Matrixes
 	cv::Mat pregreen 	= cv::Mat(640,480,CV_8U);
@@ -83,10 +80,6 @@ public:
 		cam2.SetWhiteBalanceManual(3800);
 		cam2.SetResolution(640,480);
 
-		cam.SetBrightness(1200);
-		cam.SetExposureManual(42);
-		cam.SetWhiteBalanceManual(3800);
-		cam.SetResolution(640,480);
 
 		chooser.AddDefault(NOTHING, NOTHING);
 		chooser.AddObject(DOA, DOA);
@@ -195,6 +188,7 @@ public:
 
 
 		//GLOBAL VISION
+		/*
 		if(visionOn){		//computer vision detect the strips for driving/only for forwardlight, lefthook, righthook
 			if(!greenholder){
 				autosinker.GrabFrame(pregreen);//grabs a pregreen image
@@ -343,6 +337,7 @@ public:
 				visionOn=0;
 			}
 		}
+		*/
 		//GLOBAL VISION
 
 		/*
@@ -777,7 +772,7 @@ public:
 			}
 			else if(kickerup&&kickerdummy){//Reverse
 				kickerrunning=1;
-				kicker->Set(.95*((encKicker->GetRaw())-arm_set_up)/arm_max+0.1);//Move Backwards PID and slows dows
+				kicker->Set(.95*((encKicker->GetRaw())-arm_set_up)/arm_max+0.3);//Move Backwards PID and slows dows
 				if((encKicker->GetRaw())<=arm_set_up){//Stop Early to Comp for Drift
 					kickerrunning=0;//No Longer Running
 					kickerdummy=0;
@@ -801,6 +796,7 @@ public:
 		}
 		else if(shotspeed<=-.5){
 			shooter->Set(.5);
+
 		}
 		else{
 			shooter->Set(0);
