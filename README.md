@@ -1,8 +1,10 @@
-# CB5
-Computer Vision "egg salad" ....
-FULL STEAM AHEAD
+# CB6
+\#levelup
+
 # Todo
-1. Make it work
-2. Vision
-3. ??
-4. Profit
+1. Get a Roborio
+3/2. Make some janky terrible code
+2. Make it work
+3. Vision
+4. ??
+5. Profit
