@@ -1,10 +1,12 @@
 # CB6
-\#levelup
+
+It's time to...
+LEVEL UP!
 
 # Todo
-1. Get a Roborio
-3/2. Make some janky terrible code
-2. Make it work
-3. Vision
-4. ??
-5. Profit
+1. Get a Roborio 
+2. Make some janky terrible code
+3. Make it work
+4. Vision
+5. ??
+6. Profit
