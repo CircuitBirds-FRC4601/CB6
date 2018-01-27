@@ -7,27 +7,31 @@
 #include <CameraServer.h>
 #include <unistd.h>
 #include <IterativeRobot.h>
-#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
-#include <opencv2/core/types.hpp>        //all of these might not be necessary
+#include <Encoder.h>
 
 
 class Robot: public frc::IterativeRobot {
 public:
 	float lDrive,rDrive;
+	float climby;
+
 	Spark *fLeft =new Spark(0);
 	Spark *bLeft =new Spark(1);
 	Spark *fRight =new Spark(2);
 	Spark *bRight =new Spark(3);
+	Spark *gantry =new Spark(4);
+
 	cs::UsbCamera cam= CameraServer::GetInstance()->StartAutomaticCapture();
 
-	Spark *alex =new Spark(7);
+
 
 	Joystick *leftStick =new Joystick(0);
 	Joystick *rightStick =new Joystick(1);
-	frc::DigitalOutput *light =new DigitalOutput(0);
+	Joystick *gamePad =new Joystick(2);
 
-	frc::RobotDrive *robotDrive =new frc::RobotBase (fLeft,bLeft,fRight,bRight);
+
+	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
 
@@ -62,10 +66,65 @@ public:
 		lDrive=1*leftStick->GetRawAxis(1);
 		rDrive=1*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
+		climby = gamePad->GetRawAxis(1);
+		if (fabs(climby) < .1) {
+			climby = 0;
+		}
+		gantry->Set(climby);
 
-		alex->Set(leftStick->GetRawButton(1));
-
+		SmartDashboard::PutNumber("Output", climby );
+		SmartDashboard::PutNumber("Raw", gamePad->GetRawAxis(1));
 	}
 };
 
 START_ROBOT_CLASS(Robot)
+
+/* Hardware map of the robot "TBA"  (CB5)
+ *	1ft=883.95 Wheel Encoders
+ *
+ *		RRio Pins
+ * 		PWM
+ *		0 Front Left
+ *		1 Back	"
+ *		2 Front	Right
+ *		3 Back	"
+ *		4 Gantry
+ *		5
+ *		6
+ *		7
+ *		8
+ *		9
+ *
+ *
+ *  	DIO
+ *  	0 Left Encoder A
+ *  	1 	  "		   B
+ *  	2 Right Encoder A
+ *  	3	   "		B
+ *  	4
+ *  	5
+ *  	6
+ *  	7
+ *  	8
+ *  	9
+ *  	10
+ *
+ *
+ *  	Analog
+ *  	0
+ *  	1
+ *  	2
+ *  	3
+ *
+ *		Relay
+ *		0
+ *		1
+ *		2
+ *		3
+ *
+ *
+ *
+ *
+ *
+ *
+ */
