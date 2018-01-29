@@ -22,13 +22,15 @@ public:
 	Spark *bRight =new Spark(3);
 	Spark *gantry =new Spark(4);
 
+	frc::Encoder *flimflam =new Encoder(0,1);
 	cs::UsbCamera cam= CameraServer::GetInstance()->StartAutomaticCapture();
-
-
 
 	Joystick *leftStick =new Joystick(0);
 	Joystick *rightStick =new Joystick(1);
 	Joystick *gamePad =new Joystick(2);
+
+
+
 
 
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
@@ -38,6 +40,7 @@ public:
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
 		cam.SetWhiteBalanceManual(3800);
+
 	}
 
 	/*
@@ -63,10 +66,12 @@ public:
 	}
 	//TELE START
 	void TeleopPeriodic() {
+
 		lDrive=1*leftStick->GetRawAxis(1);
 		rDrive=1*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
 		climby = gamePad->GetRawAxis(1);
+
 		if (fabs(climby) < .1) {
 			climby = 0;
 		}
@@ -74,6 +79,7 @@ public:
 
 		SmartDashboard::PutNumber("Output", climby );
 		SmartDashboard::PutNumber("Raw", gamePad->GetRawAxis(1));
+		SmartDashboard::PutNumber("WHEEEEEEEEELLLLSS", flimflam->Get());
 	}
 };
 
