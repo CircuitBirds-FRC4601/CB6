@@ -29,13 +29,16 @@ public:
 	Joystick *rightStick =new Joystick(1);
 	Joystick *gamePad =new Joystick(2);
 
-
-
+	frc::Compressor *garry= new Compressor(0);
+	frc::DoubleSolenoid *arm =new DoubleSolenoid(0,1);
 
 
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
+
+		arm->Set(frc::DoubleSolenoid::kReverse);
+
 
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
@@ -63,12 +66,13 @@ public:
 
 	void TeleopInt() {
 		// integrating time-to-forget
+		garry->Enabled();
 	}
 	//TELE START
 	void TeleopPeriodic() {
 
-		lDrive=1*leftStick->GetRawAxis(1);
-		rDrive=1*rightStick->GetRawAxis(1);
+		lDrive=.7*leftStick->GetRawAxis(1);
+		rDrive=.7*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
 		climby = gamePad->GetRawAxis(1);
 
@@ -77,9 +81,16 @@ public:
 		}
 		gantry->Set(climby);
 
+		if(gamePad->GetRawButton(3)){
+			arm->Set(frc::DoubleSolenoid::kReverse);
+		}
+		else if(gamePad->GetRawButton(4)){
+			arm->Set(frc::DoubleSolenoid::kForward);
+		}
+
 		SmartDashboard::PutNumber("Output", climby );
 		SmartDashboard::PutNumber("Raw", gamePad->GetRawAxis(1));
-		SmartDashboard::PutNumber("WHEEEEEEEEELLLLSS", flimflam->Get());
+
 	}
 };
 
