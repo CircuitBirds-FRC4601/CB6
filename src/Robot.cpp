@@ -4,6 +4,11 @@
 #include <thread>
 #include <vector>
 #include <WPILib.h>
+#include <LiveWindow/LiveWindow.h>
+#include <LiveWindow/LiveWindow.h>
+#include <WPILib.h>
+#include <SmartDashboard/SendableChooser.h>
+#include <SmartDashboard/SmartDashboard.h>
 #include <CameraServer.h>
 #include <unistd.h>
 #include <IterativeRobot.h>
@@ -11,16 +16,13 @@
 #include <Encoder.h>
 
 class Robot: public frc::IterativeRobot {
-private:
-	frc::SendableChooser<std::string> chooser;
-	 std::string autoForward= "Forward";
-	const std::string autoNormal = "Let The Magic Happen";//do some Code Magic! YAH!
-	const std::string autoNone = "NONE!";
-	std::string autoSelected;
+
 public:
-	float lDrive,rDrive;
+	float lDrive=0,rDrive=0;
 	float climby;
-	int lDis,rDis;
+	int lDis=0,rDis=0;
+	int encRes=1300;//Ticks per inch
+	bool leg0,leg1,leg2,leg3,leg4;
 	bool armout,armin;
 
 	Spark *fLeft =new Spark(0);
@@ -50,10 +52,12 @@ public:
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
 		cam.SetWhiteBalanceManual(3800);
-		chooser.AddDefault(autoNormal,autoNormal);
-		chooser.AddObject(autoForward, autoForward);
+		chooser.AddDefault(autoForward,autoForward);
+		chooser.AddDefault(autoForwardBox,autoForwardBox);
+		chooser.AddObject(autoMagic, autoMagic);
 		chooser.AddObject(autoNone, autoNone);
-		frc::SmartDashboard::PutData("Auto Modes", &chooser);
+		frc::SmartDashboard::PutData("Auto Modes",&chooser);
+
 
 	}
 
@@ -72,51 +76,143 @@ public:
 	void AutonomousInit() override{
 		gameData = frc::DriverStation::GetInstance().GetGameSpecificMessage();
 
+
 		autoSelected = chooser.GetSelected();
 		std::cout << "Auto selected: " << autoSelected << std::endl;
 
 		encLeft->Reset();
 		encRight->Reset();
-
+		leg4=0;
+		leg3=0;
+		leg2=0;
+		leg1=0;
+		leg0=0;
 	}
 
 	void AutonomousPeriodic() {
 		lDis=encLeft->GetRaw();
 		rDis=encRight->GetRaw();
+
 		//Forward
-		if(autoSelected==autoNormal){
-			if(lDis<=2011&&rDis<=2011){
-				lDrive=.7;
-				rDrive=.7;
+		if(autoSelected==autoForward){
+
+			if(lDis<=140*encRes || rDis<=140*encRes){
+				lDrive = .7;
+				rDrive = .7;
+
 			}
 			else{
-				lDrive=.7;
-				rDrive=.7;
+				lDrive = 0;
+				rDrive = 0;
 			}
+
 		}
 		//Forward
 
+		//Forward Box
+		else if(autoSelected==autoForward){
+			if(gameData.length>0&&gameData[0]=='L'){
+				if(rDis<=140*encRes||lDis<=140*encRes){
+					lDrive=.7;
+					rDrive=.7;
+				}
+				else{
+					lDrive=0;
+					rDrive=0;
+				}
+			}
+			else{
+				lDrive=0;
+				rDrive=0;
+			}
+		}
+		//Forward Box
+
+		//Magic
+		else if(autoSelected==autoForward){
+			if(gameData.length>0){
+				if(gameData[0]=='L'){//Its in front!
+					if(leg1&&(rDis<=10*encRes||lDis<=10*encRes)){
+						lDrive=.7;
+						rDrive=.7;
+					}
+					else{
+						lDrive=0;
+						rDrive=0;
+					}
+				}
+				else{
+					lDrive=0;
+					rDrive=0;
+				}
+			}
+
+			else{//Its to the right!
+				if(!leg0){
+					if(rDis<=10*encRes||lDis<=10*encRes){
+						lDrive=.7;
+						rDrive=.7;
+					}
+					else{
+						lDrive=0;
+						rDrive=0;
+						leg0=1;
+					}
+				}
+				else if(!leg1){//Spin!
+					if(rDis<=10*encRes||lDis<=10*encRes){
+						lDrive=.7;
+						rDrive=-.7;
+					}
+					else{
+						lDrive=0;
+						rDrive=0;
+						leg1=1;
+					}
+				}//Spin!
+				else if(!leg2){//7' cross
+					if(rDis<=84*encRes||lDis<=84*encRes){
+						lDrive=.7;
+						rDrive=.7;
+					}
+					else{
+						lDrive=0;
+						rDrive=0;
+						leg1=1;
+					}
+				}
+			}
+		}
+		//Magic
+
+		SmartDashboard::PutNumber("Right Encoder", rDis);
 		robotDrive->TankDrive(lDrive,rDrive);
 	}
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AUTO END~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	//AUTO END
 
 
+
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~TELE START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void TeleopInt() {
 		// integrating time-to-forget
 		garry->Enabled();
 	}
-	//TELE START
+
 	void TeleopPeriodic() {
 		lDrive=.7*leftStick->GetRawAxis(1);
 		rDrive=.7*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
-		climby = gamePad->GetRawAxis(1);
 
+		climby = gamePad->GetRawAxis(1);
+		//foo
 		if (fabs(climby) < .1) {
 			climby = 0;
 		}
 		elevator->Set(climby);
+
+		//Arm
 		armout=gamePad->GetRawButton(3);
 		armin=gamePad->GetRawButton(4);
 		if(armout){
@@ -125,11 +221,24 @@ public:
 		else if(armin){
 			arm->Set(frc::DoubleSolenoid::kForward);
 		}
-		frc::SmartDashboard::PutData("Auto Modes", &chooser);
+		//Arm End
+
 		SmartDashboard::PutNumber("Output", climby );
 		SmartDashboard::PutNumber("Raw", gamePad->GetRawAxis(1));
 
 	}
+	void TestPeriodic() {
+		lw.Run();
+	}
+private:
+	frc::LiveWindow& lw = *LiveWindow::GetInstance();
+	frc::SendableChooser<std::string> chooser;
+	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
+	const std::string autoForward = "Just Forward";
+	const std::string autoForwardBox = "Forward Box";//Goes forward if FMS says it can
+	const std::string autoNone = "NONE";
+	std::string autoSelected;
+
 };
 
 START_ROBOT_CLASS(Robot)
