@@ -19,20 +19,30 @@ class Robot: public frc::IterativeRobot {
 
 public:
 	float lDrive=0,rDrive=0;
-	float climby;
+	float elevation,angle;
 	int lDis=0,rDis=0;
-	int encRes=1300;//Ticks per inch
-	bool leg0,leg1,leg2,leg3,leg4;
+	int encRes=50;//Ticks per inch
 	bool armout,armin;
+	bool climby,shotIn,shotOut,eStop;
+	bool dumm;
 
-	Spark *fLeft =new Spark(0);
-	Spark *bLeft =new Spark(1);
+	bool leg0,leg1,leg2,leg3,leg4;
+
+
+	Spark *shooter =new Spark(0);
+	Spark *angler =new Spark(1);
 	Spark *fRight =new Spark(2);
 	Spark *bRight =new Spark(3);
-	Spark *elevator =new Spark(4);
+	Spark *climber =new Spark(4);
+	Spark *elevator =new Spark(5);
+	Spark *fLeft =new Spark(6);
+	Spark *bLeft =new Spark(7);
 
-	frc::Encoder *encLeft =new Encoder(0,1);
+	frc::Encoder *encLeft  =new Encoder(0,1);
 	frc::Encoder *encRight =new Encoder(2,3);
+	frc::Encoder *encClimb =new Encoder(4,5);
+	DigitalInput *limit    =new DigitalInput(6);
+
 	cs::UsbCamera cam= CameraServer::GetInstance()->StartAutomaticCapture();
 
 	Joystick *leftStick =new Joystick(0);
@@ -47,7 +57,6 @@ public:
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
-
 		arm->Set(frc::DoubleSolenoid::kReverse);
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
@@ -57,8 +66,6 @@ public:
 		chooser.AddObject(autoMagic, autoMagic);
 		chooser.AddObject(autoNone, autoNone);
 		frc::SmartDashboard::PutData("Auto Modes",&chooser);
-
-
 	}
 
 	/*
@@ -105,87 +112,23 @@ public:
 				lDrive = 0;
 				rDrive = 0;
 			}
-
 		}
 		//Forward
-
-		//Forward Box
 		else if(autoSelected==autoForward){
-			if(gameData.length>0&&gameData[0]=='L'){
-				if(rDis<=140*encRes||lDis<=140*encRes){
-					lDrive=.7;
-					rDrive=.7;
-				}
-				else{
-					lDrive=0;
-					rDrive=0;
-				}
+
+			if(lDis<=140*encRes || rDis<=140*encRes){
+				lDrive = .7;
+				rDrive = .7;
+
 			}
 			else{
-				lDrive=0;
-				rDrive=0;
+				lDrive = 0;
+				rDrive = 0;
 			}
 		}
-		//Forward Box
-
-		//Magic
-		else if(autoSelected==autoForward){
-			if(gameData.length>0){
-				if(gameData[0]=='L'){//Its in front!
-					if(leg1&&(rDis<=10*encRes||lDis<=10*encRes)){
-						lDrive=.7;
-						rDrive=.7;
-					}
-					else{
-						lDrive=0;
-						rDrive=0;
-					}
-				}
-				else{
-					lDrive=0;
-					rDrive=0;
-				}
-			}
-
-			else{//Its to the right!
-				if(!leg0){
-					if(rDis<=10*encRes||lDis<=10*encRes){
-						lDrive=.7;
-						rDrive=.7;
-					}
-					else{
-						lDrive=0;
-						rDrive=0;
-						leg0=1;
-					}
-				}
-				else if(!leg1){//Spin!
-					if(rDis<=10*encRes||lDis<=10*encRes){
-						lDrive=.7;
-						rDrive=-.7;
-					}
-					else{
-						lDrive=0;
-						rDrive=0;
-						leg1=1;
-					}
-				}//Spin!
-				else if(!leg2){//7' cross
-					if(rDis<=84*encRes||lDis<=84*encRes){
-						lDrive=.7;
-						rDrive=.7;
-					}
-					else{
-						lDrive=0;
-						rDrive=0;
-						leg1=1;
-					}
-				}
-			}
-		}
-		//Magic
 
 		SmartDashboard::PutNumber("Right Encoder", rDis);
+		SmartDashboard::PutNumber("Right Encoder", lDis);
 		robotDrive->TankDrive(lDrive,rDrive);
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AUTO END~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,16 +144,62 @@ public:
 	}
 
 	void TeleopPeriodic() {
-		lDrive=.7*leftStick->GetRawAxis(1);
-		rDrive=.7*rightStick->GetRawAxis(1);
+		//DRIVE
+
+		lDrive=-.7*leftStick->GetRawAxis(1);
+		rDrive=-.7*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
 
-		climby = gamePad->GetRawAxis(1);
-		//foo
-		if (fabs(climby) < .1) {
-			climby = 0;
+		//DRIVE END
+		/*if(gamePad->GetRawButton(8)){
+			encLeft->Reset();
+			encRight->Reset();
+			dumm=0;
+			lDis=0;
+			rDis=0;
+			while(!dumm){
+				lDis=encLeft->GetRaw();
+				rDis=encRight->GetRaw();
+				if(rDis<2000&&lDis<2000){
+					lDrive=.7;
+					rDrive=.7;
+				}
+				else{
+					lDrive=0;
+					rDrive=0;
+					dumm=1;
+				}
+				robotDrive->TankDrive(lDrive,rDrive);
+				SmartDashboard::PutNumber("Left",encLeft->GetRaw());
+				SmartDashboard::PutNumber("Right", encRight->GetRaw());
+			}
+		}*/
+		//Elevator and Climber
+		elevation = gamePad->GetRawAxis(1);
+		if (!dumm&&fabs(elevation) < .1) {
+			elevator->StopMotor();
+			elevation = 0;
 		}
-		elevator->Set(climby);
+		else if(!dumm) {
+			elevator->Set(.75*elevation);
+		}
+		else{
+			elevator->Set(0);
+		}
+
+		climby=gamePad->GetRawButton(7);
+		if(climby){
+			climber->Set(1);
+			dumm=1;
+		}
+		else{
+			climber->Set(0);
+			dumm=0;
+
+		}
+		//Elevator and Climber END
+
+		//BOX GRABBER
 
 		//Arm
 		armout=gamePad->GetRawButton(3);
@@ -223,15 +212,45 @@ public:
 		}
 		//Arm End
 
-		SmartDashboard::PutNumber("Output", climby );
-		SmartDashboard::PutNumber("Raw", gamePad->GetRawAxis(1));
+		//Shooter END
+		shotIn=gamePad->GetRawAxis(2);
+		shotOut=gamePad->GetRawAxis(3);
+		if(shotIn){
+			shooter->Set(-1);
+		}
+		else if(shotOut){
+			shooter->Set(1);
+		}
+		else{
+			shooter->Set(0);
+		}
+		//Shooter END
+
+		/*Angler
+		angle=gamePad->GetRawAxis(5);
+		eStop=limit->Get();
+		if(!eStop&&angle>=.25){
+			angler->Set(angle);
+		}
+		if(!eStop&&angle<=-.25){
+			angler->Set(angle);
+		}
+		else{
+			angler->Set(0);
+		}
+		//Angler End*/
+
+		//BOX GRABBER
+
+		SmartDashboard::PutNumber("Left",encLeft->GetRaw());
+		SmartDashboard::PutNumber("Right", encRight->GetRaw());
 
 	}
 	void TestPeriodic() {
-		lw.Run();
+
 	}
 private:
-	frc::LiveWindow& lw = *LiveWindow::GetInstance();
+
 	frc::SendableChooser<std::string> chooser;
 	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
 	const std::string autoForward = "Just Forward";
@@ -244,29 +263,29 @@ private:
 START_ROBOT_CLASS(Robot)
 
 /* Hardware map of the robot "TBA"  (CB5)
- *	1ft=883.95 Wheel Encoders
+ *	1in= ~56 Wheel Encoders
  *
  *		RRio Pins
  * 		PWM
- *		0 Front Left
- *		1 Back	"
+ *		0 Shooter
+ *		1 Angler
  *		2 Front	Right
  *		3 Back	"
- *		4 Elevator
- *		5
- *		6
- *		7
+ *		4 Climber
+ *		5 Elevator
+ *		6 Front Left
+ *		7 Back	"
  *		8
  *		9
  *
  *
  *  	DIO
- *  	0 Left Encoder A
- *  	1 	  "		   B
+ *  	0 Left Encoder  A
+ *  	1 	   "		B
  *  	2 Right Encoder A
  *  	3	   "		B
- *  	4
- *  	5
+ *  	4 	Climber     A
+ *  	5 	   "	 	B
  *  	6
  *  	7
  *  	8
