@@ -24,7 +24,7 @@ public:
 	int encRes=50;//Ticks per inch
 	bool armout,armin;
 	bool climby,shotIn,shotOut,eStop;
-	bool dumm;
+	bool dumm,tiltdum,tilter;
 
 	bool leg0,leg1,leg2,leg3,leg4;
 
@@ -51,6 +51,7 @@ public:
 
 	frc::Compressor *garry= new Compressor(0);
 	frc::DoubleSolenoid *arm =new DoubleSolenoid(0,1);
+	frc::DoubleSolenoid *tilt =new DoubleSolenoid(2,3);
 
 	std::string gameData;
 
@@ -202,8 +203,8 @@ public:
 		//BOX GRABBER
 
 		//Arm
-		armout=gamePad->GetRawButton(3);
-		armin=gamePad->GetRawButton(4);
+		armout=gamePad->GetRawButton(0);
+		armin=gamePad->GetRawButton(1);
 		if(armout){
 			arm->Set(frc::DoubleSolenoid::kReverse);
 		}
@@ -212,33 +213,38 @@ public:
 		}
 		//Arm End
 
-		//Shooter END
+		//Shooter
 		shotIn=gamePad->GetRawAxis(2);
 		shotOut=gamePad->GetRawAxis(3);
 		if(shotIn){
-			shooter->Set(-1);
+			shooter->Set(-.75);
 		}
 		else if(shotOut){
-			shooter->Set(1);
+			shooter->Set(.75);
 		}
 		else{
 			shooter->Set(0);
 		}
 		//Shooter END
 
-		/*Angler
-		angle=gamePad->GetRawAxis(5);
-		eStop=limit->Get();
-		if(!eStop&&angle>=.25){
-			angler->Set(angle);
+		//Tilter
+
+		if(gamePad->GetRawButton(6)&&!tiltdum){
+			tilter=!tilter;
 		}
-		if(!eStop&&angle<=-.25){
-			angler->Set(angle);
+		if(gamePad->GetRawButton(6)){
+			tiltdum=1;
 		}
 		else{
-			angler->Set(0);
+			tiltdum=0;
 		}
-		//Angler End*/
+		if(tilter){
+		tilt->Set(frc::DoubleSolenoid::kForward);
+		}
+		else{
+			tilt->Set(frc::DoubleSolenoid::kReverse);
+		}
+		//Tilter END
 
 		//BOX GRABBER
 
@@ -264,6 +270,26 @@ START_ROBOT_CLASS(Robot)
 
 /* Hardware map of the robot "TBA"  (CB5)
  *	1in= ~56 Wheel Encoders
+ *		Game Pad
+ *		Axis
+ *		0 LX) Elevator
+ *		1 LY)
+ *		2 LTrig) Shooter In
+ *		3 RTrig) Shooter Out
+ *		4 RX)
+ *		5 RY)
+ *
+ *		Button
+ *		0 A) Arm Out
+ *		1 B) Arm In
+ *		2 X)
+ *		3 Y)
+ *		4 LB)
+ *		5 RB)
+ *		6 BCK) Tilt
+ *		7 STR) Climb
+ *		8 LSTK)
+ *		9 RSTK)
  *
  *		RRio Pins
  * 		PWM
