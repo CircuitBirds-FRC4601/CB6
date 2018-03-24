@@ -24,7 +24,7 @@ public:
 	int encRes=50;//Ticks per inch
 	bool armout,armin;
 	bool climby,shotIn,shotOut,eStop;
-	bool dumm,tiltdum,tilter;
+	bool dumm,tiltdum=0,tilter;
 
 	bool leg0,leg1,leg2,leg3,leg4;
 
@@ -183,7 +183,7 @@ public:
 			elevator->Set(0);
 		}
 
-		climby=gamePad->GetRawButton(7);
+		climby=gamePad->GetRawButton(8);
 		if(climby){
 			climber->Set(1);
 			dumm=1;
@@ -224,21 +224,17 @@ public:
 
 		//Tilter
 
-		if(gamePad->GetRawButton(6)&&!tiltdum){
+		if(gamePad->GetRawButton(7)&&!tiltdum){
 			tilter=!tilter;
 		}
-		if(gamePad->GetRawButton(6)){
-			tiltdum=1;
-		}
-		else{
-			tiltdum=0;
-		}
 		if(tilter){
-		tilt->Set(frc::DoubleSolenoid::kForward);
+			tilt->Set(frc::DoubleSolenoid::kForward);
 		}
 		else{
 			tilt->Set(frc::DoubleSolenoid::kReverse);
 		}
+		tiltdum=gamePad->GetRawButton(7);
+
 		//Tilter END
 
 		//BOX GRABBER
