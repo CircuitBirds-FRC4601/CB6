@@ -58,7 +58,6 @@ public:
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
-		arm->Set(frc::DoubleSolenoid::kReverse);
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
 		cam.SetWhiteBalanceManual(3800);
@@ -90,11 +89,6 @@ public:
 
 		encLeft->Reset();
 		encRight->Reset();
-		leg4=0;
-		leg3=0;
-		leg2=0;
-		leg1=0;
-		leg0=0;
 	}
 
 	void AutonomousPeriodic() {
@@ -140,7 +134,6 @@ public:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~TELE START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void TeleopInt() {
-		// integrating time-to-forget
 		garry->Enabled();
 	}
 
@@ -178,11 +171,13 @@ public:
 		//Elevator and Climber
 		elevation = gamePad->GetRawAxis(1);
 		if (!dumm&&fabs(elevation) < .1) {
-			elevator->StopMotor();
 			elevation = 0;
 		}
 		else if(!dumm) {
 			elevator->Set(.75*elevation);
+			if(elevator->Get()<0){
+				//catch.off;
+			}
 		}
 		else{
 			elevator->Set(0);
@@ -203,8 +198,8 @@ public:
 		//BOX GRABBER
 
 		//Arm
-		armout=gamePad->GetRawButton(0);
-		armin=gamePad->GetRawButton(1);
+		armout=gamePad->GetRawButton(1);
+		armin=gamePad->GetRawButton(2);
 		if(armout){
 			arm->Set(frc::DoubleSolenoid::kReverse);
 		}
@@ -217,10 +212,10 @@ public:
 		shotIn=gamePad->GetRawAxis(2);
 		shotOut=gamePad->GetRawAxis(3);
 		if(shotIn){
-			shooter->Set(-.75);
+			shooter->Set(-1);
 		}
 		else if(shotOut){
-			shooter->Set(.75);
+			shooter->Set(1);
 		}
 		else{
 			shooter->Set(0);
@@ -280,16 +275,16 @@ START_ROBOT_CLASS(Robot)
  *		5 RY)
  *
  *		Button
- *		0 A) Arm Out
- *		1 B) Arm In
- *		2 X)
- *		3 Y)
- *		4 LB)
- *		5 RB)
- *		6 BCK) Tilt
- *		7 STR) Climb
- *		8 LSTK)
- *		9 RSTK)
+ *		1 A) Arm Out
+ *		2 B) Arm In
+ *		3 X)
+ *		4 Y)
+ *		5 LB)
+ *		6 RB)
+ *		7 BCK) Tilt
+ *		8 STR) Climb
+ *		9 LSTK)
+ *		10 RSTK)
  *
  *		RRio Pins
  * 		PWM
