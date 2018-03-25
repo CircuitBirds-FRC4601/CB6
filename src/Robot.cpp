@@ -24,7 +24,7 @@ public:
 	int encRes=50;//Ticks per inch
 	bool armout,armin;
 	bool climby,shotIn,shotOut,eStop;
-	bool dumm,tiltdum=0,tilter;
+	bool dumm,tiltdum=0,tilter,cable;
 
 	bool leg0,leg1,leg2,leg3,leg4;
 
@@ -37,11 +37,14 @@ public:
 	Spark *elevator =new Spark(5);
 	Spark *fLeft =new Spark(6);
 	Spark *bLeft =new Spark(7);
+	Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
+
+
 
 	frc::Encoder *encLeft  =new Encoder(0,1);
 	frc::Encoder *encRight =new Encoder(2,3);
 	frc::Encoder *encClimb =new Encoder(4,5);
-	DigitalInput *limit    =new DigitalInput(6);
+
 
 	cs::UsbCamera cam= CameraServer::GetInstance()->StartAutomaticCapture();
 
@@ -53,11 +56,13 @@ public:
 	frc::DoubleSolenoid *arm =new DoubleSolenoid(0,1);
 	frc::DoubleSolenoid *tilt =new DoubleSolenoid(2,3);
 
+
 	std::string gameData;
 
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
+
 		cam.SetBrightness(1200);
 		cam.SetExposureManual(42);
 		cam.SetWhiteBalanceManual(3800);
@@ -145,39 +150,23 @@ public:
 		robotDrive->TankDrive(lDrive,rDrive);
 
 		//DRIVE END
-		/*if(gamePad->GetRawButton(8)){
-			encLeft->Reset();
-			encRight->Reset();
-			dumm=0;
-			lDis=0;
-			rDis=0;
-			while(!dumm){
-				lDis=encLeft->GetRaw();
-				rDis=encRight->GetRaw();
-				if(rDis<2000&&lDis<2000){
-					lDrive=.7;
-					rDrive=.7;
-				}
-				else{
-					lDrive=0;
-					rDrive=0;
-					dumm=1;
-				}
-				robotDrive->TankDrive(lDrive,rDrive);
-				SmartDashboard::PutNumber("Left",encLeft->GetRaw());
-				SmartDashboard::PutNumber("Right", encRight->GetRaw());
-			}
-		}*/
+
 		//Elevator and Climber
 		elevation = gamePad->GetRawAxis(1);
-		if (!dumm&&fabs(elevation) < .1) {
+		if (fabs(elevation) < .1) {
 			elevation = 0;
 		}
-		else if(!dumm) {
+		if(elevation<0.0){
+			realy->Set(Relay::kOn);
+		}
+		else{
+			realy->Set(Relay::kOff);
+		}
+
+
+
+		if(!dumm) {
 			elevator->Set(.75*elevation);
-			if(elevator->Get()<0){
-				//catch.off;
-			}
 		}
 		else{
 			elevator->Set(0);
