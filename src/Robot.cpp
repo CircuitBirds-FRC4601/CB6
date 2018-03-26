@@ -16,7 +16,42 @@
 #include <Encoder.h>
 
 class Robot: public frc::IterativeRobot {
+private:
+private:
+	static void VisionThread() {
+		// Get the USB camera from CameraServer
+		cs::UsbCamera camera =
+				CameraServer::GetInstance()
+		->StartAutomaticCapture();
+		// Set the resolution
+		camera.SetResolution(640, 480);
 
+		// Get a CvSink. This will capture Mats from the Camera
+		cs::CvSink cvSink = CameraServer::GetInstance()->GetVideo();
+		// Setup a CvSource. This will send images back to the Dashboard
+		cs::CvSource outputStream =
+				CameraServer::GetInstance()->PutVideo(
+						"Rectangle", 640, 480);
+
+		// Mats are very memory expensive. Lets reuse this Mat.
+		cv::Mat mat;
+
+		while (true) {
+			// Tell the CvSink to grab a frame from the camera and
+			// put it
+			// in the source mat.  If there is an error notify the
+			// output.
+			if (cvSink.GrabFrame(mat) == 0) {
+				// Send the output the error.
+				outputStream.NotifyError(cvSink.GetError());
+				// skip the rest of the current iteration
+				continue;
+			}
+			// Put a rectangle on the image
+			// Give the output stream a new image to display
+			outputStream.PutFrame(mat);
+		}
+	}
 public:
 	float lDrive=0,rDrive=0;
 	float elevation,angle;
@@ -45,9 +80,6 @@ public:
 	frc::Encoder *encRight =new Encoder(2,3);
 	frc::Encoder *encClimb =new Encoder(4,5);
 
-
-	cs::UsbCamera cam= CameraServer::GetInstance()->StartAutomaticCapture();
-
 	Joystick *leftStick =new Joystick(0);
 	Joystick *rightStick =new Joystick(1);
 	Joystick *gamePad =new Joystick(2);
@@ -63,14 +95,13 @@ public:
 
 	void RobotInit() {
 
-		cam.SetBrightness(1200);
-		cam.SetExposureManual(42);
-		cam.SetWhiteBalanceManual(3800);
 		chooser.AddDefault(autoForward,autoForward);
 		chooser.AddDefault(autoForwardBox,autoForwardBox);
 		chooser.AddObject(autoMagic, autoMagic);
 		chooser.AddObject(autoNone, autoNone);
 		frc::SmartDashboard::PutData("Auto Modes",&chooser);
+		std::thread visionThread(VisionThread);
+		visionThread.detach();
 	}
 
 	/*
