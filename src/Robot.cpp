@@ -17,7 +17,12 @@
 
 class Robot: public frc::IterativeRobot {
 private:
-private:
+	frc::SendableChooser<std::string> chooser;
+	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
+	const std::string autoForward = "Just Forward";
+	const std::string autoForwardBox = "Forward Box";//Goes forward if FMS says it can
+	const std::string autoNone = "NONE";
+	std::string autoSelected;
 	static void VisionThread() {
 		// Get the USB camera from CameraServer
 		cs::UsbCamera camera =
@@ -25,6 +30,8 @@ private:
 		->StartAutomaticCapture();
 		// Set the resolution
 		camera.SetResolution(640, 480);
+		camera.SetBrightness(1200);
+		camera.SetExposureManual(42);
 
 		// Get a CvSink. This will capture Mats from the Camera
 		cs::CvSink cvSink = CameraServer::GetInstance()->GetVideo();
@@ -117,6 +124,7 @@ public:
 	 */
 
 	void AutonomousInit() override{
+		tilt->Set(frc::DoubleSolenoid::kForward);
 		gameData = frc::DriverStation::GetInstance().GetGameSpecificMessage();
 
 
@@ -266,14 +274,6 @@ public:
 	void TestPeriodic() {
 
 	}
-private:
-
-	frc::SendableChooser<std::string> chooser;
-	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
-	const std::string autoForward = "Just Forward";
-	const std::string autoForwardBox = "Forward Box";//Goes forward if FMS says it can
-	const std::string autoNone = "NONE";
-	std::string autoSelected;
 
 };
 
