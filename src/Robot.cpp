@@ -17,12 +17,15 @@
 
 class Robot: public frc::IterativeRobot {
 private:
+	//Auto Names
 	frc::SendableChooser<std::string> chooser;
 	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
-	const std::string autoForward = "Just Forward";
-	const std::string autoForwardBox = "Forward Box";//Goes forward if FMS says it can
+	const std::string autoForward = "FORWARD!";
+	const std::string autoForwardBox = "Forward Box (Left)";//Goes forward and drops box if FMS says it can
 	const std::string autoNone = "NONE";
 	std::string autoSelected;
+	//Auto Names
+
 	static void VisionThread() {
 		// Get the USB camera from CameraServer
 		cs::UsbCamera camera =
@@ -59,11 +62,13 @@ private:
 			outputStream.PutFrame(mat);
 		}
 	}
+
+
 public:
 	float lDrive=0,rDrive=0;
 	float elevation,angle;
 	int lDis=0,rDis=0;
-	int encRes=50;//Ticks per inch
+	int encRes=56;//Encoder Resolution Ticks per inch
 	bool armout,armin;
 	bool climby,shotIn,shotOut,eStop;
 	bool dumm,tiltdum=0,tilter,cable;
@@ -79,96 +84,171 @@ public:
 	Spark *elevator =new Spark(5);
 	Spark *fLeft =new Spark(6);
 	Spark *bLeft =new Spark(7);
-	Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
-
 
 
 	frc::Encoder *encLeft  =new Encoder(0,1);
 	frc::Encoder *encRight =new Encoder(2,3);
-	frc::Encoder *encClimb =new Encoder(4,5);
+	frc::Encoder *encElevator =new Encoder(4,5);
 
-	Joystick *leftStick =new Joystick(0);
-	Joystick *rightStick =new Joystick(1);
-	Joystick *gamePad =new Joystick(2);
+	Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
+
+
 
 	frc::Compressor *garry= new Compressor(0);
 	frc::DoubleSolenoid *arm =new DoubleSolenoid(0,1);
 	frc::DoubleSolenoid *tilt =new DoubleSolenoid(2,3);
 
 
-	std::string gameData;
+	Joystick *leftStick =new Joystick(0);
+	Joystick *rightStick =new Joystick(1);
+	Joystick *gamePad =new Joystick(2);
+
+
+
+	std::string gameData;//its a 3 letter String Depicting Sides;
 
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
 	void RobotInit() {
-
+		//Auto Chooser
 		chooser.AddDefault(autoForward,autoForward);
 		chooser.AddDefault(autoForwardBox,autoForwardBox);
 		chooser.AddObject(autoMagic, autoMagic);
 		chooser.AddObject(autoNone, autoNone);
 		frc::SmartDashboard::PutData("Auto Modes",&chooser);
+		//Auto Chooser
+
+		//Vision Detachment
 		std::thread visionThread(VisionThread);
 		visionThread.detach();
+		//Vision Detachment
 	}
 
-	/*
-	 * This autonomous (along with the chooser code above) shows how to select
-	 * between different autonomous modes using the dashboard. The sendable
-	 * chooser code works with the Java SmartDashboard. If you prefer the
-	 * LabVIEW Dashboard, remove all of the chooser code and uncomment the
-	 * GetString line to get the auto name from the text box below the Gyro.
-	 *
-	 * You can add additional auto modes by adding additional comparisons to the
-	 * if-else structure below with additional strings. If using the
-	 * SendableChooser make sure to add them to the chooser code above as well.
-	 */
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AUTO START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void AutonomousInit() override{
-		tilt->Set(frc::DoubleSolenoid::kForward);
-		gameData = frc::DriverStation::GetInstance().GetGameSpecificMessage();
+
+		tilt->Set(frc::DoubleSolenoid::kForward);//PUT THE GUN DOWN! Puts arms down
+
+		gameData = frc::DriverStation::GetInstance().GetGameSpecificMessage();//Reads the magic field config
 
 
-		autoSelected = chooser.GetSelected();
+		autoSelected = chooser.GetSelected();//Grab the chosen Auto
 		std::cout << "Auto selected: " << autoSelected << std::endl;
+
+
 
 		encLeft->Reset();
 		encRight->Reset();
+		encElevator->Reset();
+
+		rDis=0;
+		lDis=0;
+		dumm=false;
+		leg0=false;
+		leg1=false;
+		leg2=false;
 	}
 
 	void AutonomousPeriodic() {
-		lDis=encLeft->GetRaw();
+		lDis=encLeft->GetRaw();//Grabs Encoder Values
 		rDis=encRight->GetRaw();
 
-		//Forward
-		if(autoSelected==autoForward){
-
-			if(lDis<=140*encRes || rDis<=140*encRes){
-				lDrive = .7;
-				rDrive = .7;
-
+		//Forward Simple Easy
+		if(autoSelected==autoForward){//10ft line + 1ft forward
+			if(abs(rDis)<=132*encRes&&abs(lDis)<=132*encRes){
+				lDrive=.7;
+				rDrive=.7;
 			}
 			else{
-				lDrive = 0;
-				rDrive = 0;
+				lDrive=0;
+				rDrive=0;
 			}
 		}
-		//Forward
-		else if(autoSelected==autoForward){
+		//Forward Simple Easy
 
-			if(lDis<=140*encRes || rDis<=140*encRes){
-				lDrive = .7;
-				rDrive = .7;
+		//****************************************Forward Box*****************************************************
+		else if(autoSelected==autoForwardBox){//Goes Forward and sees if the FMS says it is on our side;
+			if(!leg0&&abs(rDis)<=168*encRes&&abs(lDis)<=168*encRes){
+				lDrive=.7;
+				rDrive=.7;
+			}
+
+
+			else if(!leg0){//Reset for SPIN!
+				encLeft->Reset();
+				encRight->Reset();
+				leg0=true;//First leg finished on to 2;
+			}
+
+
+
+			else if(!leg1){//SPIN Check
+				if(gameData.length()>0){//make sure there is data
+					if(gameData[0]=='L'){//Is the Switch Left?
+						if(abs(rDis)<=25*encRes&&abs(lDis)<=25*encRes){//SPIN! 90deg spin ~24.7in
+							lDrive=.65;
+							rDrive=-.65;
+						}
+						else{//PERISCOPE UP!
+							lDrive=0;
+							rDrive=0;
+							if((encElevator->GetRaw())<=36*encRes){//Raise the box up it only needs to go up 18.75in NEEDS CALIBRATED!!!!
+								realy->Set(Relay::kOn);
+								elevator->Set(.75);
+							}
+							else{
+								realy->Set(Relay::kOff);
+								elevator->Set(0);
+								encLeft->Reset();
+								encRight->Reset();
+								leg1=true;//We Done Spinning!
+							}
+						}
+					}
+
+					else{//It is not on the Left STOP!
+						leg2=1;
+						leg1=1;
+					}
+				}
+
+				else{//NO DATA AHHHHHHHHHHHHHHHHH ERRRRRRROOOOOORRR!!!!!
+					leg2=1;
+					leg1=1;
+				}
 
 			}
-			else{
-				lDrive = 0;
-				rDrive = 0;
+
+
+			else if(!leg2){//Final distance
+				if(abs(rDis)<=50*encRes&&abs(lDis)<=50*encRes){//55.56inch some wiggly room so we dont slam into it
+					lDrive=.7;
+					rDrive=.7;
+				}
+				else{
+					shooter->Set(1);
+					sleep(2);//give the box time to get out of there
+					arm->Set(frc::DoubleSolenoid::kReverse);//DROP DA BOMB!!!!
+					shooter->Set(0);
+					leg2=true;
+				}
+			}
+
+			else{//*Sigh* and now we are done
+				lDrive=0;
+				rDrive=0;
 			}
 		}
+		//****************************************Forward Box*****************************************************
 
+
+		//Print Encoder Values
 		SmartDashboard::PutNumber("Right Encoder", rDis);
 		SmartDashboard::PutNumber("Right Encoder", lDis);
-		robotDrive->TankDrive(lDrive,rDrive);
+		//Print Encoder Values
+
+		robotDrive->TankDrive(lDrive,rDrive);//Drives based on previous Drive values
 	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AUTO END~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -179,6 +259,7 @@ public:
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~TELE START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void TeleopInt() {
 		garry->Enabled();
+		dumm=0;
 	}
 
 	void TeleopPeriodic() {
