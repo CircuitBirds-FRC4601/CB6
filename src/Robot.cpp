@@ -19,7 +19,6 @@ class Robot: public frc::IterativeRobot {
 private:
 	//Auto Names
 	frc::SendableChooser<std::string> chooser;
-	const std::string autoMagic= "Magic";//Use the FMS to make decisions.
 	const std::string autoForward = "FORWARD!";
 	const std::string autoForwardBox = "Forward Box (Left)";//Goes forward and drops box if FMS says it can
 	const std::string autoNone = "NONE";
@@ -70,8 +69,8 @@ public:
 	int lDis=0,rDis=0;
 	int encRes=56;//Encoder Resolution Ticks per inch
 	bool armout,armin;
-	bool climby,shotIn,shotOut,eStop;
-	bool dumm,tiltdum=0,tilter,cable;
+	bool climby,shotIn,shotOut;
+	bool dumm,tiltdum=0,tilter;
 
 	bool leg0,leg1,leg2,leg3,leg4;
 
@@ -90,7 +89,7 @@ public:
 	frc::Encoder *encRight =new Encoder(2,3);
 	frc::Encoder *encElevator =new Encoder(4,5);
 
-	Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
+	//Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
 
 
 
@@ -113,7 +112,6 @@ public:
 		//Auto Chooser
 		chooser.AddDefault(autoForward,autoForward);
 		chooser.AddDefault(autoForwardBox,autoForwardBox);
-		chooser.AddObject(autoMagic, autoMagic);
 		chooser.AddObject(autoNone, autoNone);
 		frc::SmartDashboard::PutData("Auto Modes",&chooser);
 		//Auto Chooser
@@ -128,7 +126,7 @@ public:
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~AUTO START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void AutonomousInit() override{
 
-		tilt->Set(frc::DoubleSolenoid::kForward);//PUT THE GUN DOWN! Puts arms down
+		tilt->Set(frc::DoubleSolenoid::kReverse);//PUT THE GUN DOWN! Puts arms down
 
 		gameData = frc::DriverStation::GetInstance().GetGameSpecificMessage();//Reads the magic field config
 
@@ -155,7 +153,7 @@ public:
 		rDis=encRight->GetRaw();
 
 		//Forward Simple Easy
-		if(autoSelected==autoForward){//10ft line + 1ft forward
+		//if(autoSelected==autoForward){//10ft line + 1ft forward
 			if(abs(rDis)<=132*encRes&&abs(lDis)<=132*encRes){
 				lDrive=.7;
 				rDrive=.7;
@@ -164,11 +162,12 @@ public:
 				lDrive=0;
 				rDrive=0;
 			}
-		}
+		//}
 		//Forward Simple Easy
 
-		//****************************************Forward Box*****************************************************
-		else if(autoSelected==autoForwardBox){//Goes Forward and sees if the FMS says it is on our side;
+		// ****************************************Forward Box*****************************************************
+
+	/*	else if(autoSelected==autoForwardBox){//Goes Forward and sees if the FMS says it is on our side;
 			if(!leg0&&abs(rDis)<=168*encRes&&abs(lDis)<=168*encRes){
 				lDrive=.7;
 				rDrive=.7;
@@ -193,17 +192,13 @@ public:
 						else{//PERISCOPE UP!
 							lDrive=0;
 							rDrive=0;
-							if((encElevator->GetRaw())<=36*encRes){//Raise the box up it only needs to go up 18.75in NEEDS CALIBRATED!!!!
-								realy->Set(Relay::kOn);
-								elevator->Set(.75);
-							}
-							else{
-								realy->Set(Relay::kOff);
-								elevator->Set(0);
-								encLeft->Reset();
-								encRight->Reset();
-								leg1=true;//We Done Spinning!
-							}
+							elevator->Set(.75);
+							sleep(1);
+							elevator->Set((3.0/8.0));
+							encLeft->Reset();
+							encRight->Reset();
+							leg1=true;//We Done Spinning!
+
 						}
 					}
 
@@ -235,14 +230,16 @@ public:
 				}
 			}
 
-			else{//*Sigh* and now we are done
+			else{// *Sigh* and now we are done
 				lDrive=0;
 				rDrive=0;
 			}
 		}
-		//****************************************Forward Box*****************************************************
-
-
+		// ****************************************Forward Box*****************************************************
+		else {
+			lDrive=0;
+			rDrive=0;
+		}*/
 		//Print Encoder Values
 		SmartDashboard::PutNumber("Right Encoder", rDis);
 		SmartDashboard::PutNumber("Right Encoder", lDis);
@@ -265,28 +262,21 @@ public:
 	void TeleopPeriodic() {
 		//DRIVE
 
-		lDrive=-.7*leftStick->GetRawAxis(1);
-		rDrive=-.7*rightStick->GetRawAxis(1);
+		lDrive=-.85*leftStick->GetRawAxis(1);
+		rDrive=-.85*rightStick->GetRawAxis(1);
 		robotDrive->TankDrive(lDrive,rDrive);
 
 		//DRIVE END
 
-		//Elevator and Climber
+		//**********************************Start Elevation*******************************************************************
+
 		elevation = gamePad->GetRawAxis(1);
 		if (fabs(elevation) < .1) {
 			elevation = 0;
 		}
-		if(elevation<0.0){
-			realy->Set(Relay::kOn);
-		}
-		else{
-			realy->Set(Relay::kOff);
-		}
-
-
 
 		if(!dumm) {
-			elevator->Set(.75*elevation);
+			elevator->Set(.75*elevation);//The Motors lifting the stages.
 		}
 		else{
 			elevator->Set(0);
@@ -294,7 +284,7 @@ public:
 
 		climby=gamePad->GetRawButton(8);
 		if(climby){
-			climber->Set(1);
+			climber->Set(1);//The motor for lifting the robot
 			dumm=1;
 		}
 		else{
@@ -302,9 +292,10 @@ public:
 			dumm=0;
 
 		}
-		//Elevator and Climber END
+		//**********************************End Elevation*******************************************************************
 
-		//BOX GRABBER
+
+		//**********************************Start Box Grabber*******************************************************************
 
 		//Arm
 		armout=gamePad->GetRawButton(1);
@@ -346,7 +337,7 @@ public:
 
 		//Tilter END
 
-		//BOX GRABBER
+		//**********************************End Box Grabber*******************************************************************
 
 		SmartDashboard::PutNumber("Left",encLeft->GetRaw());
 		SmartDashboard::PutNumber("Right", encRight->GetRaw());
