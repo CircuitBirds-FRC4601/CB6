@@ -6,6 +6,6 @@ LEVEL UP!
 # Todo
 - ~~Get a Roborio~~
 - ~~Make some janky terrible code~~
-- ~~Make it work
-- ??~~
+- ~~Make it work~~
+- ~~??~~
 - Profit (I'm still wating on this part)
