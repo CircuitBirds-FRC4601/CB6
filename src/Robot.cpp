@@ -28,19 +28,22 @@ private:
 	static void VisionThread() {
 		// Get the USB camera from CameraServer
 		cs::UsbCamera camera =
-				CameraServer::GetInstance()
-		->StartAutomaticCapture();
+				CameraServer::GetInstance()->StartAutomaticCapture();
+		//This is the simplest solution if you just need a basic camera just use this in robot int
+
 		// Set the resolution
 		camera.SetResolution(640, 480);
 		camera.SetBrightness(1200);
 		camera.SetExposureManual(42);
 
+
 		// Get a CvSink. This will capture Mats from the Camera
 		cs::CvSink cvSink = CameraServer::GetInstance()->GetVideo();
 		// Setup a CvSource. This will send images back to the Dashboard
+
+		//sets up a output camera channle
 		cs::CvSource outputStream =
-				CameraServer::GetInstance()->PutVideo(
-						"Rectangle", 640, 480);
+				CameraServer::GetInstance()->PutVideo("Rectangle", 640, 480);
 
 		// Mats are very memory expensive. Lets reuse this Mat.
 		cv::Mat mat;
@@ -56,9 +59,11 @@ private:
 				// skip the rest of the current iteration
 				continue;
 			}
-			// Put a rectangle on the image
-			// Give the output stream a new image to display
-			outputStream.PutFrame(mat);
+			// Do some stuff to image
+			//example
+			//cv::Split(mat,split_output_image); splits the image into each color chanel
+
+			outputStream.PutFrame(mat);//puts the image into the output stream
 		}
 	}
 
@@ -67,11 +72,12 @@ public:
 	float lDrive=0,rDrive=0;
 	float elevation,angle;
 	int lDis=0,rDis=0;
-	int encRes=56;//Encoder Resolution Ticks per inch
 	bool armout,armin;
 	bool climby,shotIn,shotOut;
 	bool dumm,tiltdum=0,tilter;
 
+
+	int encRes=56;//Encoder Resolution Ticks per inch
 	bool leg0,leg1,leg2,leg3,leg4;
 
 
@@ -87,15 +93,15 @@ public:
 
 	frc::Encoder *encLeft  =new Encoder(0,1);
 	frc::Encoder *encRight =new Encoder(2,3);
-	frc::Encoder *encElevator =new Encoder(4,5);
 
 	//Relay *realy = new Relay(0,Relay::Direction::kForwardOnly);
 
 
-
+	//Pnumatics
 	frc::Compressor *garry= new Compressor(0);
 	frc::DoubleSolenoid *arm =new DoubleSolenoid(0,1);
 	frc::DoubleSolenoid *tilt =new DoubleSolenoid(2,3);
+	//Pnumatics
 
 
 	Joystick *leftStick =new Joystick(0);
@@ -104,7 +110,7 @@ public:
 
 
 
-	std::string gameData;//its a 3 letter String Depicting Sides;
+	std::string gameData;//its a 3 letter String Depicting Sides for auto
 
 	frc::RobotDrive *robotDrive =new frc::RobotDrive (fLeft,bLeft,fRight,bRight);
 
@@ -136,9 +142,8 @@ public:
 
 
 
-		encLeft->Reset();
+		encLeft->Reset();//reset encoder values
 		encRight->Reset();
-		encElevator->Reset();
 
 		rDis=0;
 		lDis=0;
@@ -255,7 +260,7 @@ public:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~TELE START~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	void TeleopInt() {
-		garry->Enabled();
+		garry->Enabled();//turn the compressor on
 		dumm=0;
 	}
 
@@ -271,7 +276,7 @@ public:
 		//**********************************Start Elevation*******************************************************************
 
 		elevation = gamePad->GetRawAxis(1);
-		if (fabs(elevation) < .1) {
+		if (fabs(elevation) < .1) {//little dead zone for the sticks
 			elevation = 0;
 		}
 
@@ -300,6 +305,7 @@ public:
 		//Arm
 		armout=gamePad->GetRawButton(1);
 		armin=gamePad->GetRawButton(2);
+
 		if(armout){
 			arm->Set(frc::DoubleSolenoid::kReverse);
 		}
@@ -311,6 +317,7 @@ public:
 		//Shooter
 		shotIn=gamePad->GetRawAxis(2);
 		shotOut=gamePad->GetRawAxis(3);
+
 		if(shotIn){
 			shooter->Set(-1);
 		}
@@ -324,7 +331,7 @@ public:
 
 		//Tilter
 
-		if(gamePad->GetRawButton(7)&&!tiltdum){
+		if(gamePad->GetRawButton(7)&&!tiltdum){//tilt the arms up and down with a dummy value so you don't double press
 			tilter=!tilter;
 		}
 		if(tilter){
@@ -339,7 +346,7 @@ public:
 
 		//**********************************End Box Grabber*******************************************************************
 
-		SmartDashboard::PutNumber("Left",encLeft->GetRaw());
+		SmartDashboard::PutNumber("Left",encLeft->GetRaw());//Use the smart dashboard to display information
 		SmartDashboard::PutNumber("Right", encRight->GetRaw());
 
 	}
